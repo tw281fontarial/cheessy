@@ -58,6 +58,11 @@ export function AppShell() {
       const wa = getTelegramWebApp()
       const initData = wa?.initData ?? ''
       const tgUser = wa?.initDataUnsafe && (wa.initDataUnsafe as any).user
+      console.log('telegram auth start', {
+        hasInitData: Boolean(initData),
+        initDataLength: initData.length,
+        unsafeUserId: tgUser?.id ?? null,
+      })
       const data = await api<any>('/api/auth/telegram', {
         method: 'POST',
         body: JSON.stringify({
@@ -76,7 +81,17 @@ export function AppShell() {
       if (data?.token) setAuthToken(data.token)
       return data
     },
-    onSuccess: () => me.refetch(),
+    onSuccess: (data) => {
+      console.log('telegram auth response success', data)
+      localStorage.setItem('cheessy_auth_request_status', 'success')
+      localStorage.removeItem('cheessy_auth_error')
+      me.refetch()
+    },
+    onError: (e) => {
+      console.error('telegram auth response error', e)
+      localStorage.setItem('cheessy_auth_request_status', 'error')
+      localStorage.setItem('cheessy_auth_error', (e as Error).message)
+    },
   })
 
   useEffect(() => {
@@ -94,13 +109,22 @@ export function AppShell() {
   }, [devMode, me.isError, me.isSuccess, devLogin.isPending, devLogin.isSuccess])
 
   useEffect(() => {
-    // production/telegram first-launch flow
+    // force Telegram auth bootstrap inside Telegram WebView
     if (devMode) return
     if (!isInsideTelegramWebApp()) return
     if (me.isSuccess) return
     if (telegramLogin.isPending || telegramLogin.isSuccess) return
-    if (me.isError) telegramLogin.mutate()
-  }, [devMode, me.isError, me.isSuccess, telegramLogin.isPending, telegramLogin.isSuccess])
+    const wa = getTelegramWebApp()
+    const initData = wa?.initData ?? ''
+    if (!initData) {
+      localStorage.setItem('cheessy_auth_request_status', 'error')
+      localStorage.setItem('cheessy_auth_error', 'Missing Telegram initData')
+      return
+    }
+    localStorage.setItem('cheessy_auth_request_status', 'loading')
+    localStorage.removeItem('cheessy_auth_error')
+    telegramLogin.mutate()
+  }, [devMode, me.isSuccess, telegramLogin.isPending, telegramLogin.isSuccess])
 
   useEffect(() => {
     if (!devMode) return

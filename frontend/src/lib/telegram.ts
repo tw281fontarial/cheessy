@@ -26,3 +26,22 @@ export function getTelegramWebApp(): TelegramWebApp | undefined {
   return window.Telegram?.WebApp
 }
 
+export function getTelegramDebugInfo() {
+  const hasTelegramObject = Boolean(window.Telegram)
+  const wa = getTelegramWebApp()
+  const hasWebApp = Boolean(wa)
+  const initData = wa?.initData ?? ''
+  const unsafeUser = wa?.initDataUnsafe && (wa.initDataUnsafe as any).user
+  return {
+    hasTelegramObject,
+    hasWebApp,
+    initDataLength: initData.length,
+    initDataPreview: initData ? `${initData.slice(0, 20)}...` : '',
+    hasUnsafeUser: Boolean(unsafeUser),
+    unsafeUserId: unsafeUser?.id ?? null,
+    unsafeUsername: unsafeUser?.username ?? null,
+    platform: (wa as any)?.platform ?? null,
+    version: (wa as any)?.version ?? null,
+  }
+}
+

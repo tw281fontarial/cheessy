@@ -18,9 +18,11 @@ export function verifyTelegramInitData(initData: string, botToken: string): bool
     .map((k) => `${k}=${data[k]}`)
     .join('\n')
 
-  const secretKey = crypto.createHash('sha256').update(botToken).digest()
-  const hmac = crypto.createHmac('sha256', secretKey).update(checkString).digest('hex')
-  return hmac === receivedHash
+  // Telegram Mini App verification:
+  // secret_key = HMAC_SHA256("WebAppData", bot_token)
+  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest()
+  const calculatedHash = crypto.createHmac('sha256', secretKey).update(checkString).digest('hex')
+  return calculatedHash === receivedHash
 }
 
 export function getTelegramUserFromInitData(initData: string):

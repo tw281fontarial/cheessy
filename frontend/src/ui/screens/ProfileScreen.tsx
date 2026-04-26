@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { api, setAuthToken } from '../../lib/api'
 import { getParticipantDisplay } from '../../lib/display'
-import { isDevMode } from '../../lib/devMode'
-import { getTelegramWebApp } from '../../lib/telegram'
+import { canUseDevPanelForUser, isDevMode, isInsideTelegramWebApp } from '../../lib/devMode'
+import { getTelegramDebugInfo, getTelegramWebApp } from '../../lib/telegram'
 import { StickerCard } from '../components/StickerCard'
 import { Button } from '../components/Button'
 
@@ -26,6 +26,10 @@ type Me = {
 
 export function ProfileScreen() {
   const devMode = isDevMode()
+  const insideTelegram = isInsideTelegramWebApp()
+  const tgDebug = getTelegramDebugInfo()
+  const authRequestStatus = localStorage.getItem('cheessy_auth_request_status') ?? 'idle'
+  const authError = localStorage.getItem('cheessy_auth_error')
 
   const me = useQuery({
     queryKey: ['me'],
@@ -65,17 +69,45 @@ export function ProfileScreen() {
         {me.isLoading ? <div className="text-sm">Загружаю…</div> : null}
         {me.isError ? (
           <div className="space-y-3">
-            <div className="text-sm opacity-80">
-              {devMode
-                ? 'DEV MODE: автологин выполняется в фоне. Если не получилось — проверь backend env и seed.'
-                : 'Похоже, ты не залогинен через Telegram Mini App. Нажми кнопку ниже.'}
-            </div>
-            {!devMode ? (
-              <Button onClick={() => login.mutate()} disabled={login.isPending}>
-                Войти через Telegram
-              </Button>
+            {insideTelegram ? (
+              <>
+                <div className="text-sm font-black">Не удалось авторизоваться через Telegram</div>
+                <div className="text-sm opacity-80">
+                  Приложение открыто внутри Telegram, но Telegram initData не прошёл проверку. Попробуй закрыть Mini App и открыть заново через кнопку бота.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-sm opacity-80">
+                  {devMode
+                    ? 'DEV MODE: автологин выполняется в фоне. Если не получилось — проверь backend env и seed.'
+                    : 'Похоже, ты не залогинен через Telegram Mini App.'}
+                </div>
+                {!devMode ? (
+                  <Button onClick={() => login.mutate()} disabled={login.isPending}>
+                    Войти через Telegram
+                  </Button>
+                ) : null}
+              </>
+            )}
+
+            {(insideTelegram || canUseDevPanelForUser(tgDebug.unsafeUsername)) ? (
+              <div className="rounded-xl border-4 border-black p-3 text-xs">
+                <div>isTelegramWebApp: {insideTelegram ? 'true' : 'false'}</div>
+                <div>hasTelegramObject: {tgDebug.hasTelegramObject ? 'true' : 'false'}</div>
+                <div>hasWebApp: {tgDebug.hasWebApp ? 'true' : 'false'}</div>
+                <div>hasInitData: {tgDebug.initDataLength > 0 ? 'true' : 'false'}</div>
+                <div>initDataLength: {tgDebug.initDataLength}</div>
+                <div>hasUnsafeUser: {tgDebug.hasUnsafeUser ? 'true' : 'false'}</div>
+                <div>unsafeUserId: {tgDebug.unsafeUserId ?? '—'}</div>
+                <div>unsafeUsername: {tgDebug.unsafeUsername ?? '—'}</div>
+                <div>authRequestStatus: {authRequestStatus}</div>
+                <div>authError: {authError ?? (me.error as Error).message}</div>
+                <div>initDataPreview: {tgDebug.initDataPreview || '—'}</div>
+                <div>platform: {tgDebug.platform ?? '—'}</div>
+                <div>version: {tgDebug.version ?? '—'}</div>
+              </div>
             ) : null}
-            <div className="text-xs opacity-60">Нужен запуск внутри Telegram для корректного initData.</div>
           </div>
         ) : null}
         {me.data ? (
