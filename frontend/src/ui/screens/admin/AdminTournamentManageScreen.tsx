@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { api } from '../../../lib/api'
 import { getParticipantDisplay } from '../../../lib/display'
 import { StickerCard } from '../../components/StickerCard'
@@ -167,10 +167,19 @@ export function AdminTournamentManageScreen() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <BackButton label="← Назад" fallbackTo="/tournaments" />
+        <Link
+          to="/tournaments"
+          className="rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-xs font-bold text-white"
+        >
+          ← В приложение
+        </Link>
+      </div>
       <StickerCard
         title="Турнир"
         right={
-          <BackButton />
+          <BackButton label="← К админке" fallbackTo="/tournaments" />
         }
       >
         {t.isLoading ? <div className="text-sm">Загружаю…</div> : null}
