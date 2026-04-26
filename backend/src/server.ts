@@ -135,6 +135,115 @@ function statusPriority(status: string) {
   }
 }
 
+function profileRegistrationState(input: { tournamentStatus: string; checkedIn: boolean; arrivalStatus: string | null }) {
+  if (input.tournamentStatus === 'running') return 'running'
+  if (input.checkedIn) return 'checked_in'
+  if (input.arrivalStatus === 'late') return 'late'
+  return 'in_list'
+}
+
+function pointsForGameResult(result: string | null, isWhite: boolean) {
+  if (result === 'bye') return 1
+  if (result === '0.5-0.5') return 0.5
+  if ((result === '1-0' && isWhite) || (result === '0-1' && !isWhite)) return 1
+  return 0
+}
+
+async function buildMeStats(userId: string) {
+  const { data: registrations, error: regsErr } = await supabase
+    .from('registrations')
+    .select('tournament_id, status, tournaments!inner(status)')
+    .eq('user_id', userId)
+    .eq('status', 'registered')
+    .eq('tournaments.status', 'finished')
+  if (regsErr) return { error: regsErr, stats: null as any }
+
+  const finishedTournamentIds = new Set<string>((registrations ?? []).map((r: any) => r.tournament_id as string))
+  if (finishedTournamentIds.size === 0) {
+    return {
+      error: null,
+      stats: { tournamentsPlayed: 0, gamesPlayed: 0, wins: 0, draws: 0, losses: 0, byes: 0, totalPoints: 0, avgPointsPerTournament: 0 },
+    }
+  }
+
+  const { data: rounds, error: roundsErr } = await supabase
+    .from('rounds')
+    .select('id')
+    .in('tournament_id', [...finishedTournamentIds])
+  if (roundsErr) return { error: roundsErr, stats: null as any }
+
+  const roundIds = (rounds ?? []).map((r: any) => r.id as string)
+  if (roundIds.length === 0) {
+    return {
+      error: null,
+      stats: {
+        tournamentsPlayed: finishedTournamentIds.size,
+        gamesPlayed: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        byes: 0,
+        totalPoints: 0,
+        avgPointsPerTournament: 0,
+      },
+    }
+  }
+
+  const { data: games, error: gamesErr } = await supabase
+    .from('games')
+    .select('white_user_id, black_user_id, result')
+    .in('round_id', roundIds)
+    .not('result', 'is', null)
+  if (gamesErr) return { error: gamesErr, stats: null as any }
+
+  let gamesPlayed = 0
+  let wins = 0
+  let draws = 0
+  let losses = 0
+  let byes = 0
+  let totalPoints = 0
+  for (const game of games ?? []) {
+    const whiteId = (game as any).white_user_id as string | null
+    const blackId = (game as any).black_user_id as string | null
+    const result = (game as any).result as string | null
+    if (whiteId !== userId && blackId !== userId) continue
+
+    const isWhite = whiteId === userId
+    if (result === 'bye') {
+      byes += 1
+      totalPoints += 1
+      continue
+    }
+    if (!blackId) continue
+
+    gamesPlayed += 1
+    if (result === '0.5-0.5') {
+      draws += 1
+      totalPoints += 0.5
+    } else if ((result === '1-0' && isWhite) || (result === '0-1' && !isWhite)) {
+      wins += 1
+      totalPoints += 1
+    } else if (result === '1-0' || result === '0-1') {
+      losses += 1
+    }
+  }
+
+  const tournamentsPlayed = finishedTournamentIds.size
+  return {
+    error: null,
+    stats: {
+      tournamentsPlayed,
+      gamesPlayed,
+      wins,
+      draws,
+      losses,
+      byes,
+      totalPoints,
+      avgPointsPerTournament: tournamentsPlayed > 0 ? Number((totalPoints / tournamentsPlayed).toFixed(2)) : 0,
+    },
+  }
+}
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
 app.post('/api/telegram/webhook', async (req, res) => {
@@ -294,7 +403,7 @@ app.get('/api/me', async (req: AuthedRequest, res) => {
 
   const { data: user, error: userErr } = await supabase
     .from('users')
-    .select('id, telegram_id, username, first_name, last_name, role')
+    .select('id, telegram_id, username, first_name, last_name, role, default_player_name')
     .eq('id', req.auth.userId)
     .single()
   if (userErr || !user) return res.status(500).json({ error: 'DB error' })
@@ -315,6 +424,7 @@ app.get('/api/me', async (req: AuthedRequest, res) => {
       firstName: user.first_name,
       lastName: user.last_name,
       role: user.role === 'admin' ? 'admin' : 'user',
+      defaultPlayerName: user.default_player_name ?? null,
     },
     registrations:
       regs?.map((r: any) => ({
@@ -326,6 +436,241 @@ app.get('/api/me', async (req: AuthedRequest, res) => {
         checkedIn: r.checked_in,
         playerName: r.player_name ?? null,
       })) ?? [],
+  })
+})
+
+app.patch('/api/me/profile', async (req: AuthedRequest, res) => {
+  if (!requireAuth(req, res)) return
+  const Body = z.object({
+    defaultPlayerName: z.string().trim().max(100).nullable(),
+  })
+  const parsed = Body.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'Bad request' })
+
+  const name = parsed.data.defaultPlayerName?.trim() || null
+  const { data, error } = await supabase
+    .from('users')
+    .update({ default_player_name: name })
+    .eq('id', req.auth.userId)
+    .select('id, telegram_id, username, first_name, last_name, role, default_player_name')
+    .single()
+  if (error || !data) return res.status(500).json({ error: 'DB error' })
+
+  res.json({
+    ok: true,
+    user: {
+      id: data.id,
+      telegramId: data.telegram_id,
+      username: data.username,
+      firstName: data.first_name,
+      lastName: data.last_name,
+      role: data.role === 'admin' ? 'admin' : 'user',
+      defaultPlayerName: data.default_player_name ?? null,
+    },
+  })
+})
+
+app.get('/api/me/stats', async (req: AuthedRequest, res) => {
+  if (!requireAuth(req, res)) return
+  const built = await buildMeStats(req.auth.userId)
+  if (built.error) return res.status(500).json({ error: 'DB error' })
+  res.json(built.stats)
+})
+
+app.get('/api/me/profile-summary', async (req: AuthedRequest, res) => {
+  if (!requireAuth(req, res)) return
+  const userId = req.auth.userId
+
+  const { data: user, error: userErr } = await supabase
+    .from('users')
+    .select('id, telegram_id, username, first_name, last_name, role, default_player_name')
+    .eq('id', userId)
+    .single()
+  if (userErr || !user) return res.status(500).json({ error: 'DB error' })
+
+  const { data: regs, error: regErr } = await supabase
+    .from('registrations')
+    .select('tournament_id, status, checked_in, arrival_status, player_name, tournaments!inner(id, title, starts_at, location_text, status)')
+    .eq('user_id', userId)
+    .eq('status', 'registered')
+    .in('tournaments.status', ['registration_open', 'registration_closed', 'running'])
+    .order('starts_at', { ascending: true, referencedTable: 'tournaments' })
+  if (regErr) return res.status(500).json({ error: 'DB error' })
+
+  const upcomingTournaments = (regs ?? []).map((r: any) => ({
+    tournamentId: r.tournament_id,
+    title: r.tournaments?.title ?? 'Турнир',
+    startsAt: r.tournaments?.starts_at ?? new Date().toISOString(),
+    locationText: r.tournaments?.location_text ?? '',
+    tournamentStatus: r.tournaments?.status ?? 'draft',
+    status: profileRegistrationState({
+      tournamentStatus: r.tournaments?.status ?? 'draft',
+      checkedIn: Boolean(r.checked_in),
+      arrivalStatus: (r.arrival_status as string | null) ?? null,
+    }),
+    playerName: r.player_name ?? null,
+  }))
+
+  const runningTournamentIds = [...new Set(upcomingTournaments.filter((t) => t.tournamentStatus === 'running').map((t) => t.tournamentId))]
+  let currentGames: any[] = []
+  if (runningTournamentIds.length > 0) {
+    const { data: rounds, error: roundsErr } = await supabase
+      .from('rounds')
+      .select('id, round_number, tournament_id')
+      .in('tournament_id', runningTournamentIds)
+      .eq('status', 'published')
+    if (roundsErr) return res.status(500).json({ error: 'DB error' })
+    const roundById = new Map<string, any>((rounds ?? []).map((r: any) => [r.id, r]))
+    const roundIds = (rounds ?? []).map((r: any) => r.id as string)
+
+    if (roundIds.length > 0) {
+      const { data: games, error: gamesErr } = await supabase
+        .from('games')
+        .select('round_id, table_number, white_user_id, black_user_id, result')
+        .in('round_id', roundIds)
+        .or(`white_user_id.eq.${userId},black_user_id.eq.${userId}`)
+      if (gamesErr) return res.status(500).json({ error: 'DB error' })
+
+      const opponentIds = new Set<string>()
+      for (const g of games ?? []) {
+        const whiteId = (g as any).white_user_id as string | null
+        const blackId = (g as any).black_user_id as string | null
+        const opponentId = whiteId === userId ? blackId : whiteId
+        if (opponentId) opponentIds.add(opponentId)
+      }
+
+      const { data: oppRegs } =
+        opponentIds.size > 0
+          ? await supabase
+              .from('registrations')
+              .select('tournament_id, user_id, player_name, users(username, first_name, last_name)')
+              .in('tournament_id', runningTournamentIds)
+              .in('user_id', [...opponentIds])
+              .eq('status', 'registered')
+          : { data: [] as any[] }
+      const oppMap = new Map<string, string>()
+      for (const r of oppRegs ?? []) {
+        oppMap.set(`${(r as any).tournament_id}:${(r as any).user_id}`, registrationDisplayName(r as any))
+      }
+
+      currentGames = (games ?? []).map((g: any) => {
+        const round = roundById.get(g.round_id)
+        const tournamentId = round?.tournament_id as string
+        const tournament = upcomingTournaments.find((t) => t.tournamentId === tournamentId)
+        const isWhite = g.white_user_id === userId
+        const opponentId = isWhite ? (g.black_user_id as string | null) : (g.white_user_id as string | null)
+        return {
+          tournamentId,
+          tournamentTitle: tournament?.title ?? 'Турнир',
+          roundNumber: round?.round_number ?? 0,
+          tableNumber: g.table_number ?? 0,
+          opponent: opponentId ? oppMap.get(`${tournamentId}:${opponentId}`) ?? 'Соперник' : null,
+          color: g.result === 'bye' || !g.black_user_id ? null : isWhite ? 'white' : 'black',
+          result: g.result ?? null,
+          isBye: g.result === 'bye' || !g.black_user_id,
+        }
+      })
+    }
+  }
+
+  const { data: finishedRegs, error: finishedRegsErr } = await supabase
+    .from('registrations')
+    .select('tournament_id, player_name, tournaments!inner(id, title, starts_at, status)')
+    .eq('user_id', userId)
+    .eq('status', 'registered')
+    .eq('tournaments.status', 'finished')
+  if (finishedRegsErr) return res.status(500).json({ error: 'DB error' })
+
+  const finishedTournamentIds = (finishedRegs ?? []).map((r: any) => r.tournament_id as string)
+  let history: any[] = []
+  const statsByTournament = new Map<string, number>()
+  if (finishedTournamentIds.length > 0) {
+    const { data: rounds, error: roundsErr } = await supabase
+      .from('rounds')
+      .select('id, tournament_id')
+      .in('tournament_id', finishedTournamentIds)
+    if (roundsErr) return res.status(500).json({ error: 'DB error' })
+    const roundToTournament = new Map<string, string>((rounds ?? []).map((r: any) => [r.id, r.tournament_id]))
+    const roundIds = (rounds ?? []).map((r: any) => r.id as string)
+
+    if (roundIds.length > 0) {
+      const { data: games, error: gamesErr } = await supabase
+        .from('games')
+        .select('white_user_id, black_user_id, result, round_id')
+        .in('round_id', roundIds)
+      if (gamesErr) return res.status(500).json({ error: 'DB error' })
+      const pointsByTournamentAndUser = new Map<string, number>()
+      for (const game of games ?? []) {
+        const tid = roundToTournament.get((game as any).round_id as string)
+        if (!tid) continue
+        const whiteId = (game as any).white_user_id as string | null
+        const blackId = (game as any).black_user_id as string | null
+        const result = (game as any).result as string | null
+        if (!result) continue
+        if (whiteId) {
+          const key = `${tid}:${whiteId}`
+          pointsByTournamentAndUser.set(key, (pointsByTournamentAndUser.get(key) ?? 0) + pointsForGameResult(result, true))
+        }
+        if (blackId) {
+          const key = `${tid}:${blackId}`
+          pointsByTournamentAndUser.set(key, (pointsByTournamentAndUser.get(key) ?? 0) + pointsForGameResult(result, false))
+        }
+      }
+
+      const { data: allFinishedRegs, error: allRegsErr } = await supabase
+        .from('registrations')
+        .select('tournament_id, user_id')
+        .in('tournament_id', finishedTournamentIds)
+        .eq('status', 'registered')
+      if (allRegsErr) return res.status(500).json({ error: 'DB error' })
+
+      const byTournament = new Map<string, Array<{ userId: string; points: number }>>()
+      for (const r of allFinishedRegs ?? []) {
+        const tid = (r as any).tournament_id as string
+        const uid = (r as any).user_id as string
+        if (!byTournament.has(tid)) byTournament.set(tid, [])
+        byTournament.get(tid)!.push({ userId: uid, points: pointsByTournamentAndUser.get(`${tid}:${uid}`) ?? 0 })
+      }
+      for (const [tid, rows] of byTournament.entries()) {
+        rows.sort((a, b) => b.points - a.points || a.userId.localeCompare(b.userId))
+        rows.forEach((row, index) => {
+          if (row.userId === userId) statsByTournament.set(tid, index + 1)
+        })
+      }
+
+      history = (finishedRegs ?? [])
+        .map((r: any) => {
+          const tid = r.tournament_id as string
+          return {
+            tournamentId: tid,
+            title: r.tournaments?.title ?? 'Турнир',
+            startsAt: r.tournaments?.starts_at ?? new Date().toISOString(),
+            place: statsByTournament.get(tid) ?? null,
+            points: pointsByTournamentAndUser.get(`${tid}:${userId}`) ?? 0,
+            playerName: r.player_name ?? null,
+          }
+        })
+        .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime())
+    }
+  }
+
+  const builtStats = await buildMeStats(userId)
+  if (builtStats.error) return res.status(500).json({ error: 'DB error' })
+
+  return res.json({
+    user: {
+      id: user.id,
+      telegramId: user.telegram_id,
+      username: user.username,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      role: user.role === 'admin' ? 'admin' : 'user',
+      defaultPlayerName: user.default_player_name ?? null,
+    },
+    upcomingTournaments,
+    currentGames,
+    history,
+    stats: builtStats.stats,
   })
 })
 

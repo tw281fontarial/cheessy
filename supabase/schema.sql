@@ -10,6 +10,7 @@ create table if not exists public.users (
   username text,
   first_name text,
   last_name text,
+  default_player_name text,
   photo_url text,
   role text not null default 'user' check (role in ('user', 'admin')),
   created_at timestamptz not null default now(),

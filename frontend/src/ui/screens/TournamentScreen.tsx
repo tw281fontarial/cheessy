@@ -24,11 +24,24 @@ type Tournament = {
   myRegistration: { status: string; checkedIn: boolean; player_name?: string | null; show_telegram_username?: boolean; arrival_status?: string } | null
 }
 
+type Me = {
+  user: {
+    defaultPlayerName: string | null
+    username: string | null
+    firstName: string | null
+  }
+}
+
 export function TournamentScreen() {
   const { id } = useParams()
   const tournamentId = useMemo(() => id ?? '', [id])
   const [playerName, setPlayerName] = useState('')
   const [showTelegramUsername, setShowTelegramUsername] = useState(false)
+  const me = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api<Me>('/api/me'),
+    retry: false,
+  })
 
   const q = useQuery({
     queryKey: ['tournament', tournamentId],
@@ -40,10 +53,15 @@ export function TournamentScreen() {
     mutationFn: () =>
       api(`/api/tournaments/${tournamentId}/register`, {
         method: 'POST',
-        body: JSON.stringify({ playerName, showTelegramUsername }),
+        body: JSON.stringify({ playerName: playerName.trim() || suggestedPlayerName, showTelegramUsername }),
       }),
     onSuccess: () => q.refetch(),
   })
+
+  const suggestedPlayerName =
+    me.data?.user.defaultPlayerName?.trim() ||
+    me.data?.user.firstName?.trim() ||
+    (me.data?.user.username ? me.data.user.username.replace(/^@/, '') : '')
   const cancelRegistration = useMutation({
     mutationFn: () => api(`/api/tournaments/${tournamentId}/cancel-registration`, { method: 'POST', body: JSON.stringify({}) }),
     onSuccess: () => q.refetch(),
@@ -164,7 +182,7 @@ export function TournamentScreen() {
                   className="w-full rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-sm"
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
-                  placeholder="Например: kven, макс из кухни, Ферзь из Купчино"
+                  placeholder={suggestedPlayerName || 'Например: kven, макс из кухни, Ферзь из Купчино'}
                 />
                 <label className="flex items-center gap-2 text-xs opacity-80">
                   <input type="checkbox" checked={showTelegramUsername} onChange={(e) => setShowTelegramUsername(e.target.checked)} />
@@ -183,7 +201,7 @@ export function TournamentScreen() {
                 </div>
                 <Button
                   variant={q.data.tournament.registrationOpen ? 'black' : 'danger'}
-                  disabled={!q.data.tournament.registrationOpen || register.isPending || !playerName.trim()}
+                  disabled={!q.data.tournament.registrationOpen || register.isPending || !(playerName.trim() || suggestedPlayerName)}
                   onClick={() => register.mutate()}
                 >
                   {register.isPending

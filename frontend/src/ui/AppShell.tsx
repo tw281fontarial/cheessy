@@ -155,7 +155,6 @@ export function AppShell() {
   }, [devIdentity])
 
   const showBottomNav = !location.pathname.startsWith('/admin')
-  const isAdmin = (me.data as any)?.user?.role === 'admin'
   const currentUsername = ((me.data as any)?.user?.username as string | null | undefined) ?? null
   const canShowDevPanel = canUseDevPanelForUser(currentUsername)
 
@@ -233,16 +232,6 @@ export function AppShell() {
             </div>
           ) : null}
 
-          {isAdmin ? (
-            <div className="mt-3 flex justify-end">
-              <a
-                href="/admin"
-                  className="rounded-xl border border-white/20 bg-black px-4 py-2 text-xs font-bold uppercase tracking-wide text-white"
-              >
-                Админка
-              </a>
-            </div>
-          ) : null}
         </header>
 
         <main className={['px-4 pb-28', showBottomNav ? 'pt-3' : 'pt-3 pb-6'].join(' ')}>
