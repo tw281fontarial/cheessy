@@ -1,0 +1,60 @@
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { api } from '../../lib/api'
+import { StickerCard } from '../components/StickerCard'
+
+type TournamentListItem = {
+  id: string
+  title: string
+  startsAt: string
+  locationText: string
+  status: string
+}
+
+export function TournamentsScreen() {
+  const q = useQuery({
+    queryKey: ['tournaments'],
+    queryFn: () => api<{ tournaments: TournamentListItem[] }>('/api/tournaments'),
+  })
+
+  return (
+    <div className="space-y-4">
+      <StickerCard title="Афиша">
+        <div className="text-sm">
+          <div className="font-bold">Санкт‑Петербург</div>
+          <div className="opacity-80">Открывай турнир и регистрируйся в один тап.</div>
+        </div>
+      </StickerCard>
+
+      <StickerCard title="Турниры">
+        {q.isLoading ? <div className="text-sm">Загружаю…</div> : null}
+        {q.isError ? (
+          <div className="text-sm text-red-700">Ошибка: {(q.error as Error).message}</div>
+        ) : null}
+        {q.data ? (
+          <div className="space-y-3">
+            {q.data.tournaments.length === 0 ? (
+              <div className="text-sm opacity-80">Пока пусто. Админ добавит турнир вручную.</div>
+            ) : (
+              q.data.tournaments.map((t) => (
+                <Link
+                  key={t.id}
+                  to={`/tournaments/${t.id}`}
+                  className="block rounded-2xl border-4 border-black p-3 hover:bg-[#ffe600]"
+                >
+                  <div className="text-base font-black">{t.title}</div>
+                  <div className="text-xs font-bold opacity-80">{new Date(t.startsAt).toLocaleString()}</div>
+                  <div className="text-xs opacity-80">{t.locationText}</div>
+                  <div className="mt-2 inline-block rounded-full border-2 border-black px-2 py-1 text-[11px] font-black uppercase">
+                    {t.status}
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        ) : null}
+      </StickerCard>
+    </div>
+  )
+}
+

@@ -1,0 +1,17 @@
+{
+  "name": "cheessy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Telegram Mini App MVP for offline chess tournaments (SPb).",
+  "scripts": {
+    "dev": "npm run -w backend dev & npm run -w frontend dev",
+    "dev:frontend": "npm run -w frontend dev",
+    "dev:backend": "npm run -w backend dev",
+    "build": "npm run -w frontend build && npm run -w backend build",
+    "lint": "npm run -w frontend lint && npm run -w backend lint"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
+}

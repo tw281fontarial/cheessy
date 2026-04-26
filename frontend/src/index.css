@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+/* Comic chess punk / sticker UI base theme */
+:root {
+  --ink: #0b0b0b;
+  --paper: #ffffff;
+  --lemon: #ffe600;
+  --danger: #ff2d2d;
+  --muted: #f4f4f4;
+  --shadow: 6px 6px 0 rgba(0, 0, 0, 0.9);
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji";
+}
+
+/* chess pattern background helper */
+.bg-chess {
+  background-image: linear-gradient(45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, 0.08) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, 0.08) 75%);
+  background-size: 36px 36px;
+  background-position: 0 0, 0 18px, 18px -18px, -18px 0px;
+}
+
+.sticker {
+  border: 4px solid var(--ink);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  background: var(--paper);
+}
+
+.sticker-yellow {
+  background: var(--lemon);
+}
+
+.sticker-danger {
+  background: var(--danger);
+  color: #fff;
+}
