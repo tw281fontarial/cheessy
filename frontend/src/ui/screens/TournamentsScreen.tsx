@@ -39,12 +39,12 @@ export function TournamentsScreen() {
                 <Link
                   key={t.id}
                   to={`/tournaments/${t.id}`}
-                  className="block rounded-2xl border-4 border-black p-3 hover:bg-[#ffe600]"
+                  className="block rounded-2xl border border-white/15 bg-[#0f172a] p-3 hover:border-[#ffe600]/70"
                 >
-                  <div className="text-base font-black">{t.title}</div>
+                  <div className="text-base font-bold">{t.title}</div>
                   <div className="text-xs font-bold opacity-80">{new Date(t.startsAt).toLocaleString()}</div>
                   <div className="text-xs opacity-80">{t.locationText}</div>
-                  <div className="mt-2 inline-block rounded-full border-2 border-black px-2 py-1 text-[11px] font-black uppercase">
+                  <div className="mt-2 inline-block rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold uppercase">
                     {t.status}
                   </div>
                 </Link>

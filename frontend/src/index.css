@@ -1,14 +1,13 @@
 @import "tailwindcss";
 
-/* Comic chess punk / sticker UI base theme */
 :root {
-  --ink: #0b0b0b;
-  --paper: #ffffff;
+  --ink: #e5e7eb;
+  --paper: #111827;
   --lemon: #ffe600;
   --danger: #ff2d2d;
-  --muted: #f4f4f4;
-  --shadow: 6px 6px 0 rgba(0, 0, 0, 0.9);
-  color-scheme: light;
+  --muted: #1f2937;
+  --shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  color-scheme: dark;
 }
 
 html,
@@ -18,27 +17,22 @@ body {
 
 body {
   margin: 0;
-  background: var(--paper);
+  background: #0b1220;
   color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji",
     "Segoe UI Emoji";
 }
 
-/* chess pattern background helper */
-.bg-chess {
-  background-image: linear-gradient(45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, 0.08) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, 0.08) 75%);
-  background-size: 36px 36px;
-  background-position: 0 0, 0 18px, 18px -18px, -18px 0px;
+.bg-app {
+  background: radial-gradient(1200px 500px at 50% -100px, #1f2937 0%, #0b1220 55%, #070b14 100%);
 }
 
 .sticker {
-  border: 4px solid var(--ink);
-  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
   box-shadow: var(--shadow);
-  background: var(--paper);
+  background: #111827;
+  color: #e5e7eb;
 }
 
 .sticker-yellow {

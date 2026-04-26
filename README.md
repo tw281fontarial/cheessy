@@ -23,6 +23,7 @@ MVP Telegram Mini App для организации офлайн шахматн�
 Скопируй `backend/.env.example` → `backend/.env` и заполни:
 
 - `TELEGRAM_BOT_TOKEN`
+- `APP_BASE_URL` (для production: `https://cheessy-frontend.vercel.app`)
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `JWT_SECRET`
@@ -52,4 +53,15 @@ npm run dev
   - `POST /api/tournaments/:id/register`
 
 Следующий шаг — расширить админ‑флоу и добавить туры/пары/результаты + рассылки ботом.
+
+## Telegram webhook (/start flow)
+
+После деплоя backend настрой webhook для бота:
+
+1. Выполни:
+   `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://cheessy-api.onrender.com/api/telegram/webhook`
+2. Проверь:
+   `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getWebhookInfo`
+3. После этого напиши `/start` боту `@cheesssy_bot`
+4. Бот должен прислать кнопку **Открыть Cheessy** (это `web_app` кнопка)
 

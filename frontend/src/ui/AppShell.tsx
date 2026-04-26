@@ -11,8 +11,8 @@ function TabLink(props: { to: string; label: string }) {
       to={props.to}
       className={({ isActive }) =>
         [
-          'flex-1 text-center px-3 py-2 rounded-xl border-4 border-black font-black uppercase tracking-wide',
-          isActive ? 'bg-[#ffe600]' : 'bg-white',
+          'flex-1 text-center px-3 py-2 rounded-xl border border-black/20 font-bold tracking-wide text-sm',
+          isActive ? 'bg-[#ffe600] text-black' : 'bg-[#1f2937] text-white',
         ].join(' ')
       }
     >
@@ -58,11 +58,6 @@ export function AppShell() {
       const wa = getTelegramWebApp()
       const initData = wa?.initData ?? ''
       const tgUser = wa?.initDataUnsafe && (wa.initDataUnsafe as any).user
-      console.log('telegram auth start', {
-        hasInitData: Boolean(initData),
-        initDataLength: initData.length,
-        unsafeUserId: tgUser?.id ?? null,
-      })
       const data = await api<any>('/api/auth/telegram', {
         method: 'POST',
         body: JSON.stringify({
@@ -82,13 +77,12 @@ export function AppShell() {
       return data
     },
     onSuccess: (data) => {
-      console.log('telegram auth response success', data)
       localStorage.setItem('cheessy_auth_request_status', 'success')
       localStorage.removeItem('cheessy_auth_error')
+      if (data?.token) setAuthToken(data.token)
       me.refetch()
     },
     onError: (e) => {
-      console.error('telegram auth response error', e)
       localStorage.setItem('cheessy_auth_request_status', 'error')
       localStorage.setItem('cheessy_auth_error', (e as Error).message)
     },
@@ -109,16 +103,21 @@ export function AppShell() {
   }, [devMode, me.isError, me.isSuccess, devLogin.isPending, devLogin.isSuccess])
 
   useEffect(() => {
-    // force Telegram auth bootstrap inside Telegram WebView
     if (devMode) return
-    if (!isInsideTelegramWebApp()) return
     if (me.isSuccess) return
     if (telegramLogin.isPending || telegramLogin.isSuccess) return
     const wa = getTelegramWebApp()
     const initData = wa?.initData ?? ''
+    const unsafeUser = wa?.initDataUnsafe && (wa.initDataUnsafe as any).user
+    if (!isInsideTelegramWebApp()) return
     if (!initData) {
       localStorage.setItem('cheessy_auth_request_status', 'error')
       localStorage.setItem('cheessy_auth_error', 'Missing Telegram initData')
+      return
+    }
+    if (!unsafeUser?.id) {
+      localStorage.setItem('cheessy_auth_request_status', 'error')
+      localStorage.setItem('cheessy_auth_error', 'Missing Telegram user in initDataUnsafe')
       return
     }
     localStorage.setItem('cheessy_auth_request_status', 'loading')
@@ -174,8 +173,8 @@ export function AppShell() {
   }, [me.data])
 
   return (
-    <div className="min-h-dvh bg-chess">
-      <div className="mx-auto max-w-md min-h-dvh bg-white border-x-4 border-black">
+    <div className="min-h-dvh bg-app">
+      <div className="mx-auto max-w-md min-h-dvh bg-[#111827] border-x border-white/10">
         <header className="px-4 pt-4">
           {canShowDevPanel ? (
             <div className="sticker px-4 py-2">
@@ -187,7 +186,7 @@ export function AppShell() {
                   <div className="flex gap-2">
                     <button
                       className={[
-                        'rounded-lg border-2 border-black px-2 py-1 text-[11px] font-black uppercase',
+                        'rounded-lg border border-black/20 px-2 py-1 text-[11px] font-bold uppercase',
                         devIdentity === 'player' ? 'bg-[#ffe600]' : 'bg-white',
                       ].join(' ')}
                       onClick={() => setDevIdentity('player')}
@@ -197,7 +196,7 @@ export function AppShell() {
                     </button>
                     <button
                       className={[
-                        'rounded-lg border-2 border-black px-2 py-1 text-[11px] font-black uppercase',
+                        'rounded-lg border border-black/20 px-2 py-1 text-[11px] font-bold uppercase',
                         devIdentity === 'admin' ? 'bg-[#ffe600]' : 'bg-white',
                       ].join(' ')}
                       onClick={() => setDevIdentity('admin')}
@@ -217,7 +216,7 @@ export function AppShell() {
             <div className="mt-3 flex justify-end">
               <a
                 href="/admin"
-                className="rounded-xl border-4 border-black bg-black px-4 py-2 text-xs font-black uppercase tracking-wide text-white"
+                  className="rounded-xl border border-white/20 bg-black px-4 py-2 text-xs font-bold uppercase tracking-wide text-white"
               >
                 Админка
               </a>
@@ -238,7 +237,7 @@ export function AppShell() {
               </div>
               <button
                 type="button"
-                className="mt-4 w-full rounded-xl border-4 border-black bg-[#ffe600] px-4 py-2 text-sm font-black uppercase"
+                className="mt-4 w-full rounded-xl border border-black/20 bg-[#ffe600] px-4 py-2 text-sm font-bold uppercase"
                 onClick={() => setShowInlineOnboarding(false)}
               >
                 Погнали
@@ -249,7 +248,7 @@ export function AppShell() {
 
         {showBottomNav ? (
           <nav className="fixed bottom-0 left-0 right-0">
-            <div className="mx-auto max-w-md border-t-4 border-black bg-white px-3 py-3">
+            <div className="mx-auto max-w-md border-t border-white/10 bg-[#0f172a] px-3 py-2.5">
               <div className="flex gap-2">
                 <TabLink to="/tournaments" label="Турниры" />
                 <TabLink to="/profile" label="Профиль" />

@@ -8,7 +8,7 @@ import { createSupabaseAdmin } from './supabase'
 import { getTelegramUserFromInitData, verifyTelegramInitData } from './telegram/verifyInitData'
 import { authMiddleware, requireAuth, requireAdmin, type AuthedRequest } from './auth/middleware'
 import { signUserJwt } from './auth/jwt'
-import { sendTelegramMessage } from './telegram/bot'
+import { sendTelegramMessage, sendTelegramMessageWithWebAppButton } from './telegram/bot'
 import { computePointsFromGames, swissPairing } from './services/swissPairing'
 
 const env = loadEnv()
@@ -99,6 +99,32 @@ function displayName(u: { username?: string | null; first_name?: string | null; 
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
+app.post('/api/telegram/webhook', async (req, res) => {
+  const message = req.body?.message
+  const text = typeof message?.text === 'string' ? message.text : ''
+  if (!message || !text.startsWith('/start')) return res.json({ ok: true })
+
+  const from = message?.from
+  const chatId = message?.chat?.id
+  if (!from?.id || typeof chatId !== 'number') return res.json({ ok: true })
+
+  const { error } = await supabase.from('users').upsert(
+    {
+      telegram_id: from.id,
+      username: from.username ?? null,
+      first_name: from.first_name ?? null,
+      last_name: from.last_name ?? null,
+    },
+    { onConflict: 'telegram_id' },
+  )
+
+  if (!error) {
+    await sendTelegramMessageWithWebAppButton(env, chatId).catch(() => {})
+  }
+
+  return res.json({ ok: true })
+})
+
 app.post('/api/auth/telegram', async (req: AuthedRequest, res) => {
   const Body = z.object({
     initData: z.string().optional(),
@@ -116,29 +142,15 @@ app.post('/api/auth/telegram', async (req: AuthedRequest, res) => {
   const body = Body.safeParse(req.body)
   if (!body.success) return res.status(400).json({ error: 'Bad request' })
 
-  // eslint-disable-next-line no-console
-  console.log('POST /api/auth/telegram received', {
-    hasInitData: Boolean(body.data.initData),
-    initDataLength: body.data.initData?.length ?? 0,
-    userId: body.data.user?.id ?? null,
-    username: body.data.user?.username ?? null,
-  })
-
   if (!body.data.initData || body.data.initData.trim().length === 0) {
-    // eslint-disable-next-line no-console
-    console.log('POST /api/auth/telegram verify result fail', { reason: 'missing_init_data' })
     return res.status(400).json({ error: 'Missing Telegram initData' })
   }
   const initData = body.data.initData
 
   const ok = verifyTelegramInitData(initData, env.TELEGRAM_BOT_TOKEN)
   if (!ok) {
-    // eslint-disable-next-line no-console
-    console.log('POST /api/auth/telegram verify result fail', { reason: 'invalid_signature' })
     return res.status(401).json({ error: 'Invalid Telegram initData' })
   }
-  // eslint-disable-next-line no-console
-  console.log('POST /api/auth/telegram verify result success')
 
   const tgUser = getTelegramUserFromInitData(initData) ?? (body.data.user as any)
   if (!tgUser?.id) return res.status(401).json({ error: 'missing_user' })
@@ -159,11 +171,7 @@ app.post('/api/auth/telegram', async (req: AuthedRequest, res) => {
     .select('id, role')
     .single()
 
-  if (error || !userRow) {
-    // eslint-disable-next-line no-console
-    console.log('POST /api/auth/telegram error', error?.message ?? 'unknown')
-    return res.status(500).json({ error: 'DB error' })
-  }
+  if (error || !userRow) return res.status(500).json({ error: 'DB error' })
 
   const role = (userRow.role === 'admin' ? 'admin' : 'user') as 'user' | 'admin'
   const token = signUserJwt(env, { sub: userRow.id, role })
