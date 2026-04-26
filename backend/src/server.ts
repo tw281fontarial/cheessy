@@ -25,18 +25,19 @@ const parseAllowedOrigins = () => {
   return [...new Set([...base, ...extra, ...dev])]
 }
 const allowedOrigins = parseAllowedOrigins()
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true)
+    if (allowedOrigins.includes(origin)) return cb(null, true)
+    return cb(new Error(`Origin not allowed: ${origin}`))
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+}
 app.use(
-  cors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true)
-      if (allowedOrigins.includes(origin)) return cb(null, true)
-      return cb(new Error(`Origin not allowed: ${origin}`))
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  }),
+  cors(corsOptions),
 )
-app.options('*', cors())
+app.options(/.*/, cors(corsOptions))
 app.use(express.json())
 app.use(cookieParser())
 app.use(authMiddleware(env))
