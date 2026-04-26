@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../../../lib/api'
-import { getParticipantDisplay } from '../../../lib/display'
+import { getParticipantDisplay, registrationStatusLabel, sourceLabel, statusLabel } from '../../../lib/display'
 import { StickerCard } from '../../components/StickerCard'
 import { Button } from '../../components/Button'
 import { BackButton } from '../../components/BackButton'
@@ -124,6 +124,19 @@ export function AdminTournamentManageScreen() {
     onSuccess: () => t.refetch(),
   })
 
+  const [telegramUsername, setTelegramUsername] = useState('')
+  const addTelegramParticipant = useMutation({
+    mutationFn: () =>
+      api(`/api/admin/tournaments/${tournamentId}/add-telegram-participant`, {
+        method: 'POST',
+        body: JSON.stringify({ username: telegramUsername }),
+      }),
+    onSuccess: () => {
+      regs.refetch()
+      setTelegramUsername('')
+    },
+  })
+
   const [offlineNickname, setOfflineNickname] = useState('@guest')
   const [offlineFullName, setOfflineFullName] = useState('')
   const addOffline = useMutation({
@@ -189,22 +202,18 @@ export function AdminTournamentManageScreen() {
             <div className="text-base font-black">{t.data.tournament.title}</div>
             <div className="opacity-80">{new Date(t.data.tournament.startsAt).toLocaleString()}</div>
             <div className="opacity-80">{t.data.tournament.locationText}</div>
-            <div className="inline-block rounded-full border-2 border-black px-2 py-1 text-[11px] font-black uppercase">
-              {t.data.tournament.status}
+            <div className="inline-block rounded-full border border-white/20 px-2 py-1 text-[11px] font-black">
+              {statusLabel(t.data.tournament.status)}
             </div>
             <div className="text-xs font-bold opacity-80">
-              регистраций: {totalRegs} · пришли: {checkedInCount}
+              Количество регистраций: {totalRegs} · Пришли: {checkedInCount}
             </div>
           </div>
         ) : null}
 
         {tournamentStatus !== 'finished' ? (
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button
-              variant="yellow"
-              onClick={() => openReg.mutate()}
-              disabled={openReg.isPending || tournamentStatus === 'running'}
-            >
+            <Button variant="yellow" onClick={() => openReg.mutate()} disabled={openReg.isPending || tournamentStatus === 'running'}>
               Открыть рег.
             </Button>
             <Button
@@ -222,7 +231,10 @@ export function AdminTournamentManageScreen() {
             <>
               <Button
                 variant="black"
-                onClick={() => startTournament.mutate()}
+                onClick={() => {
+                  if (!confirm('Начать турнир? Регистрация будет закрыта.')) return
+                  startTournament.mutate()
+                }}
                 disabled={startTournament.isPending || checkedInCount === 0}
               >
                 {startTournament.isPending ? 'Стартую…' : 'Начать турнир'}
@@ -271,7 +283,7 @@ export function AdminTournamentManageScreen() {
                 ) : (
                   <div className="space-y-3">
                     {currentGames.map((g) => (
-                      <div key={g.id} className="rounded-2xl border-4 border-black p-3">
+                      <div key={g.id} className="rounded-2xl border border-white/20 p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="text-xs font-black uppercase">стол #{g.table_number}</div>
@@ -317,7 +329,7 @@ export function AdminTournamentManageScreen() {
                                 </span>
                               </div>
                             )}
-                            <div className="mt-1 text-xs font-bold opacity-80">result: {g.result ?? '—'}</div>
+                            <div className="mt-1 text-xs font-bold opacity-80">Результат: {g.result ?? 'ожидается'}</div>
                           </div>
                         </div>
 
@@ -357,7 +369,14 @@ export function AdminTournamentManageScreen() {
 
                     {running && allDone ? (
                       <div className="space-y-2">
-                        <Button variant="black" onClick={() => generateNextRound.mutate()} disabled={generateNextRound.isPending}>
+                        <Button
+                          variant="black"
+                          onClick={() => {
+                            if (!confirm('Создать следующий тур? Проверь, что все результаты внесены.')) return
+                            generateNextRound.mutate()
+                          }}
+                          disabled={generateNextRound.isPending || !allDone}
+                        >
                           {generateNextRound.isPending ? 'Генерирую…' : 'Создать следующий тур'}
                         </Button>
                         {generateNextRound.isError ? (
@@ -379,7 +398,7 @@ export function AdminTournamentManageScreen() {
         {standings.data ? (
           <div className="space-y-2">
             {standings.data.standings.map((s) => (
-              <div key={s.userId} className="flex items-center justify-between rounded-2xl border-4 border-black px-3 py-2">
+              <div key={s.userId} className="flex items-center justify-between rounded-2xl border border-white/20 px-3 py-2">
                 <div className="text-sm font-black">
                   {s.place}. {s.name}
                 </div>
@@ -390,18 +409,21 @@ export function AdminTournamentManageScreen() {
         ) : null}
       </StickerCard>
 
-      <StickerCard title="Завершение">
+      <StickerCard title="Опасные действия">
         <Button
           variant="danger"
-          onClick={() => finishTournament.mutate()}
-          disabled={finishTournament.isPending || (t.data as any)?.tournament?.status !== 'running'}
+          onClick={() => {
+            if (!confirm('Завершить турнир? После этого турнир станет завершённым.')) return
+            finishTournament.mutate()
+          }}
+          disabled={finishTournament.isPending || (t.data as any)?.tournament?.status !== 'running' || (t.data as any)?.tournament?.status === 'finished'}
         >
           {finishTournament.isPending ? 'Завершаю…' : 'Завершить турнир'}
         </Button>
         {finishTournament.isError ? <div className="mt-2 text-sm text-red-700">Ошибка: {(finishTournament.error as Error).message}</div> : null}
       </StickerCard>
 
-      <StickerCard title="Офлайн-участник">
+      <StickerCard title="Участники">
         <div className="space-y-3">
           <div className="space-y-2">
             <input
@@ -417,10 +439,29 @@ export function AdminTournamentManageScreen() {
               placeholder="Имя и фамилия (опционально)"
             />
           </div>
-          <Button variant="yellow" onClick={() => addOffline.mutate()} disabled={addOffline.isPending}>
-            {addOffline.isPending ? 'Добавляю…' : 'Добавить'}
+          <Button variant="yellow" onClick={() => addOffline.mutate()} disabled={addOffline.isPending || tournamentStatus === 'finished'}>
+            {addOffline.isPending ? 'Добавляю…' : 'Добавить офлайн-участника'}
           </Button>
           {addOffline.isError ? <div className="text-sm text-red-700">Ошибка: {(addOffline.error as Error).message}</div> : null}
+
+          <div className="h-px bg-white/10" />
+          <div className="text-xs font-bold opacity-70">Добавить Telegram-участника</div>
+          <input
+            className="rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-sm"
+            value={telegramUsername}
+            onChange={(e) => setTelegramUsername(e.target.value)}
+            placeholder="@username"
+          />
+          <Button
+            variant="black"
+            onClick={() => addTelegramParticipant.mutate()}
+            disabled={addTelegramParticipant.isPending || !telegramUsername.trim() || tournamentStatus === 'finished'}
+          >
+            {addTelegramParticipant.isPending ? 'Добавляю…' : 'Добавить Telegram-участника'}
+          </Button>
+          {addTelegramParticipant.isError ? (
+            <div className="text-sm text-red-700">Ошибка: {(addTelegramParticipant.error as Error).message}</div>
+          ) : null}
         </div>
       </StickerCard>
 
@@ -437,13 +478,13 @@ export function AdminTournamentManageScreen() {
                 lastName: r.user.lastName,
               })
               return (
-                <div key={r.id} className="rounded-2xl border-4 border-black p-3">
+                <div key={r.id} className="rounded-2xl border border-white/20 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-black">{disp.primary}</div>
                       {disp.secondary ? <div className="text-xs opacity-70">{disp.secondary}</div> : null}
                       <div className="text-xs opacity-70">
-                        {r.status} · {r.source}
+                        {registrationStatusLabel(r.status)} · {sourceLabel(r.source)}
                       </div>
                     </div>
                     <div
@@ -452,21 +493,21 @@ export function AdminTournamentManageScreen() {
                         r.checkedIn ? 'bg-[#ffe600]' : 'bg-white',
                       ].join(' ')}
                     >
-                      {r.checkedIn ? 'checked-in' : 'not yet'}
+                      {r.checkedIn ? 'Пришёл' : 'Не отмечен'}
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <Button
                       variant="yellow"
                       onClick={() => checkIn.mutate(r.id)}
-                      disabled={checkIn.isPending || r.checkedIn}
+                      disabled={checkIn.isPending || r.checkedIn || tournamentStatus === 'finished'}
                     >
                       Пришёл
                     </Button>
                     <Button
                       variant="danger"
                       onClick={() => uncheck.mutate(r.id)}
-                      disabled={uncheck.isPending || !r.checkedIn}
+                      disabled={uncheck.isPending || !r.checkedIn || tournamentStatus === 'finished'}
                     >
                       Снять
                     </Button>

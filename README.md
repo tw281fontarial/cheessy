@@ -65,3 +65,14 @@ npm run dev
 3. После этого напиши `/start` боту `@cheesssy_bot`
 4. Бот должен прислать кнопку **Открыть Cheessy** (это `web_app` кнопка)
 
+## Очистка тестовых турниров
+
+Если нужно вручную очистить тестовые турниры в production/stage, можно выполнить SQL:
+
+```sql
+delete from public.tournaments
+where title ilike '%TEST%';
+```
+
+Важно: у `tournaments` включён `on delete cascade`, поэтому будут удалены связанные `registrations`, `rounds` и `games`.
+

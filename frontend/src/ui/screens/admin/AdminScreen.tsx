@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../../../lib/api'
+import { statusLabel } from '../../../lib/display'
 import { StickerCard } from '../../components/StickerCard'
 import { BackButton } from '../../components/BackButton'
 
@@ -61,8 +62,8 @@ export function AdminScreen() {
                     <div className="text-xs opacity-80">{new Date(t.startsAt).toLocaleString()}</div>
                   </div>
                   <div className="text-right">
-                    <div className="inline-block rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold uppercase">
-                      {t.status}
+                    <div className="inline-block rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold">
+                      {statusLabel(t.status)}
                     </div>
                     <div className="mt-2 text-xs font-bold opacity-80">{t.registrationsCount} регистраций</div>
                   </div>

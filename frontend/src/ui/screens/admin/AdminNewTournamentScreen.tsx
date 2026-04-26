@@ -10,9 +10,9 @@ export function AdminNewTournamentScreen() {
   const nav = useNavigate()
   const me = useQuery({ queryKey: ['me'], queryFn: () => api<any>('/api/me'), retry: false })
 
-  const [title, setTitle] = useState('Ночной Swiss (тест)')
-  const [description, setDescription] = useState('MVP тестовый турнир')
-  const [locationText, setLocationText] = useState('СПб · Тестовая локация')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [locationText, setLocationText] = useState('')
   const [startsAt, setStartsAt] = useState(() => new Date(Date.now() + 72 * 3600_000).toISOString().slice(0, 16))
   const [maxPlayers, setMaxPlayers] = useState<number | ''>(32)
   const [status, setStatus] = useState<'draft' | 'registration_open'>('draft')
@@ -24,8 +24,9 @@ export function AdminNewTournamentScreen() {
       locationText,
       startsAt: new Date(startsAt).toISOString(),
       maxPlayers: maxPlayers === '' ? null : Number(maxPlayers),
+      status,
     }
-  }, [title, description, locationText, startsAt, maxPlayers])
+  }, [title, description, locationText, startsAt, maxPlayers, status])
 
   const create = useMutation({
     mutationFn: async () => {
@@ -33,12 +34,12 @@ export function AdminNewTournamentScreen() {
         method: 'POST',
         body: JSON.stringify(body),
       })
-      if (status === 'registration_open') {
-        await api(`/api/admin/tournaments/${created.id}/registration/open`, { method: 'POST', body: JSON.stringify({}) })
-      }
       return created
     },
-    onSuccess: (r) => nav(`/admin/tournaments/${r.id}`),
+    onSuccess: (r) => {
+      alert('Турнир создан')
+      nav(`/admin/tournaments/${r.id}`)
+    },
   })
 
   if (me.isLoading) return <div className="text-sm">Загружаю…</div>
@@ -70,7 +71,7 @@ export function AdminNewTournamentScreen() {
       >
         <div className="space-y-3">
           <label className="block">
-            <div className="text-xs font-black uppercase">title</div>
+            <div className="text-xs font-black">Название</div>
             <input
               className="mt-1 w-full rounded-xl border-4 border-black px-3 py-2 text-sm"
               value={title}
@@ -79,7 +80,7 @@ export function AdminNewTournamentScreen() {
           </label>
 
           <label className="block">
-            <div className="text-xs font-black uppercase">description</div>
+            <div className="text-xs font-black">Описание</div>
             <textarea
               className="mt-1 w-full rounded-xl border-4 border-black px-3 py-2 text-sm"
               value={description}
@@ -89,7 +90,7 @@ export function AdminNewTournamentScreen() {
           </label>
 
           <label className="block">
-            <div className="text-xs font-black uppercase">location_text</div>
+            <div className="text-xs font-black">Локация</div>
             <input
               className="mt-1 w-full rounded-xl border-4 border-black px-3 py-2 text-sm"
               value={locationText}
@@ -98,7 +99,7 @@ export function AdminNewTournamentScreen() {
           </label>
 
           <label className="block">
-            <div className="text-xs font-black uppercase">starts_at</div>
+            <div className="text-xs font-black">Дата и время начала</div>
             <input
               type="datetime-local"
               className="mt-1 w-full rounded-xl border-4 border-black px-3 py-2 text-sm"
@@ -108,7 +109,7 @@ export function AdminNewTournamentScreen() {
           </label>
 
           <label className="block">
-            <div className="text-xs font-black uppercase">max_players</div>
+            <div className="text-xs font-black">Лимит участников</div>
             <input
               type="number"
               className="mt-1 w-full rounded-xl border-4 border-black px-3 py-2 text-sm"
@@ -118,14 +119,15 @@ export function AdminNewTournamentScreen() {
           </label>
 
           <label className="block">
-            <div className="text-xs font-black uppercase">status</div>
+            <div className="text-xs font-black">Статус</div>
             <select
               className="mt-1 w-full rounded-xl border-4 border-black px-3 py-2 text-sm font-bold"
               value={status}
               onChange={(e) => setStatus(e.target.value as any)}
             >
-              <option value="draft">draft</option>
-              <option value="registration_open">registration_open</option>
+              <option value="draft">Черновик</option>
+              <option value="registration_open">Регистрация открыта</option>
+              <option value="registration_closed">Регистрация закрыта</option>
             </select>
           </label>
 

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
-import { getParticipantDisplay } from '../../lib/display'
+import { getParticipantDisplay, registrationStatusLabel } from '../../lib/display'
 import { isDevMode, isInsideTelegramWebApp } from '../../lib/devMode'
 import { env } from '../../lib/env'
 import { getTelegramDebugInfo } from '../../lib/telegram'
@@ -119,7 +119,7 @@ export function ProfileScreen() {
                   <div className="text-sm font-black">{r.tournamentTitle}</div>
                   <div className="text-xs opacity-80">{new Date(r.startsAt).toLocaleString()}</div>
                   <div className="mt-2 text-xs font-bold">
-                    {r.status} {r.checkedIn ? '· пришёл' : ''}
+                    {registrationStatusLabel(r.status)} {r.checkedIn ? '· Пришёл' : ''}
                   </div>
                 </div>
               ))

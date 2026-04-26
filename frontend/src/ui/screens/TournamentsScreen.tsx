@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { env } from '../../lib/env'
+import { statusLabel } from '../../lib/display'
 import { StickerCard } from '../components/StickerCard'
 
 type TournamentListItem = {
@@ -17,6 +18,9 @@ export function TournamentsScreen() {
     queryKey: ['tournaments'],
     queryFn: () => api<{ tournaments: TournamentListItem[] }>('/api/tournaments'),
   })
+
+  const active = (q.data?.tournaments ?? []).filter((t) => t.status !== 'finished')
+  const finished = (q.data?.tournaments ?? []).filter((t) => t.status === 'finished')
 
   return (
     <div className="space-y-4">
@@ -35,7 +39,7 @@ export function TournamentsScreen() {
             {q.data.tournaments.length === 0 ? (
               <div className="text-sm opacity-80">Пока пусто. Админ добавит турнир вручную.</div>
             ) : (
-              q.data.tournaments.map((t) => (
+              active.map((t) => (
                 <Link
                   key={t.id}
                   to={`/tournaments/${t.id}`}
@@ -44,12 +48,29 @@ export function TournamentsScreen() {
                   <div className="text-base font-bold">{t.title}</div>
                   <div className="text-xs font-bold opacity-80">{new Date(t.startsAt).toLocaleString()}</div>
                   <div className="text-xs opacity-80">{t.locationText}</div>
-                  <div className="mt-2 inline-block rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold uppercase">
-                    {t.status}
+                  <div className="mt-2 inline-block rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold">
+                    {statusLabel(t.status)}
                   </div>
                 </Link>
               ))
             )}
+            {finished.length > 0 ? (
+              <div className="pt-2">
+                <div className="mb-2 text-xs font-bold opacity-70">Прошедшие</div>
+                <div className="space-y-2">
+                  {finished.map((t) => (
+                    <Link
+                      key={t.id}
+                      to={`/tournaments/${t.id}`}
+                      className="block rounded-2xl border border-white/10 bg-[#0f172a]/60 p-3 hover:border-white/25"
+                    >
+                      <div className="text-sm font-bold">{t.title}</div>
+                      <div className="text-xs opacity-70">{new Date(t.startsAt).toLocaleString()}</div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </StickerCard>

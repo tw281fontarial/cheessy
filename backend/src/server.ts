@@ -97,6 +97,23 @@ function displayName(u: { username?: string | null; first_name?: string | null; 
   return 'Игрок'
 }
 
+function statusPriority(status: string) {
+  switch (status) {
+    case 'registration_open':
+      return 1
+    case 'registration_closed':
+      return 2
+    case 'running':
+      return 3
+    case 'finished':
+      return 4
+    case 'draft':
+      return 5
+    default:
+      return 99
+  }
+}
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
 app.post('/api/telegram/webhook', async (req, res) => {
@@ -293,11 +310,18 @@ app.get('/api/tournaments', async (_req, res) => {
     .from('tournaments')
     .select('id, title, starts_at, location_text, status')
     .order('starts_at', { ascending: true })
-    .limit(50)
+    .limit(200)
   if (error) return res.status(500).json({ error: 'DB error' })
 
+  const visible = (data ?? []).filter((t) => t.status !== 'draft')
+  const sorted = visible.sort((a, b) => {
+    const byStatus = statusPriority(a.status) - statusPriority(b.status)
+    if (byStatus !== 0) return byStatus
+    return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
+  })
+
   res.json({
-    tournaments: (data ?? []).map((t) => ({
+    tournaments: sorted.map((t) => ({
       id: t.id,
       title: t.title,
       startsAt: t.starts_at,
@@ -311,7 +335,7 @@ app.get('/api/tournaments/:id', async (req: AuthedRequest, res) => {
   const id = req.params.id
   const { data: t, error } = await supabase
     .from('tournaments')
-    .select('id, title, description, starts_at, location_text, status')
+    .select('id, title, description, starts_at, location_text, status, max_players')
     .eq('id', id)
     .single()
   if (error || !t) return res.status(404).json({ error: 'Not found' })
@@ -329,6 +353,12 @@ app.get('/api/tournaments/:id', async (req: AuthedRequest, res) => {
     if (r && r.status !== 'cancelled') myRegistration = r
   }
 
+  const { count: registrationsCount } = await supabase
+    .from('registrations')
+    .select('*', { count: 'exact', head: true })
+    .eq('tournament_id', id)
+    .neq('status', 'cancelled')
+
   res.json({
     tournament: {
       id: t.id,
@@ -337,6 +367,8 @@ app.get('/api/tournaments/:id', async (req: AuthedRequest, res) => {
       startsAt: t.starts_at,
       locationText: t.location_text,
       status: t.status,
+      maxPlayers: t.max_players,
+      registrationsCount: registrationsCount ?? 0,
       registrationOpen,
       myRegistration,
     },
@@ -347,7 +379,11 @@ app.post('/api/tournaments/:id/register', async (req: AuthedRequest, res) => {
   if (!requireAuth(req, res)) return
   const tournamentId = req.params.id
 
-  const { data: t, error: tErr } = await supabase.from('tournaments').select('id, status').eq('id', tournamentId).single()
+  const { data: t, error: tErr } = await supabase
+    .from('tournaments')
+    .select('id, status, title, starts_at, location_text')
+    .eq('id', tournamentId)
+    .single()
   if (tErr || !t) return res.status(404).json({ error: 'Not found' })
   if (t.status !== 'registration_open') return res.status(400).json({ error: 'Registration is closed' })
 
@@ -370,13 +406,14 @@ app.post('/api/tournaments/:id/register', async (req: AuthedRequest, res) => {
   // Bot confirmation (logged to bot_outbox)
   const [{ data: user }, { data: tour }] = await Promise.all([
     supabase.from('users').select('telegram_id').eq('id', req.auth.userId).maybeSingle(),
-    supabase.from('tournaments').select('title, starts_at').eq('id', tournamentId).maybeSingle(),
+    supabase.from('tournaments').select('title, starts_at, location_text').eq('id', tournamentId).maybeSingle(),
   ])
   const chatId = (user as any)?.telegram_id
   if (typeof chatId === 'number' && chatId > 0) {
     const title = (tour as any)?.title ?? 'Турнир'
     const startsAt = (tour as any)?.starts_at ? new Date((tour as any).starts_at).toLocaleString() : ''
-    const text = `✅ Регистрация подтверждена\n${title}\n${startsAt}`
+    const location = (tour as any)?.location_text ?? 'Локация уточняется'
+    const text = `Ты зарегистрирован на турнир: ${title}. Начало: ${startsAt}. Локация: ${location}.`
     await sendBotMessageLogged({
       userId: req.auth.userId,
       chatId,
@@ -662,9 +699,7 @@ app.post('/api/admin/tournaments/:id/notify/15min', async (req: AuthedRequest, r
   if (error) return res.status(500).json({ error: 'DB error' })
 
   const title = (t as any)?.title ?? 'Турнир'
-  const startsAt = (t as any)?.starts_at ? new Date((t as any).starts_at).toLocaleString() : ''
-
-  const msg = `⏳ ${title}\nСтарт через 15 минут.\n${startsAt}`
+  const msg = `Турнир ${title} начнётся через 15 минут. Подходи к организатору для отметки.`
   const targets = (regs ?? [])
     .map((r: any) => ({ userId: r.user_id as string | undefined, chatId: r.users?.telegram_id as number | undefined }))
     .filter((x: any) => typeof x.chatId === 'number' && x.chatId > 0) as Array<{ userId?: string; chatId: number }>
@@ -675,7 +710,7 @@ app.post('/api/admin/tournaments/:id/notify/15min', async (req: AuthedRequest, r
         userId: t.userId ?? null,
         chatId: t.chatId,
         messageType: 'tournament_15min',
-        payload: { tournamentId, title, startsAt },
+          payload: { tournamentId, title },
         text: msg,
       }),
     ),
@@ -773,7 +808,7 @@ app.post('/api/admin/tournaments/:id/start', async (req: AuthedRequest, res) => 
           chatId: p.white.telegramId,
           messageType: 'pairing_published',
           payload: { tournamentId, roundNumber: 1, tableNumber: p.table, opponent: p.black.name, color: 'white' },
-          text: `Тур №1. Ваш соперник: ${p.black.name}. Ваш цвет: белые. Стол №${p.table}.`,
+          text: `Тур №1. Стол №${p.table}. Твой соперник: ${p.black.name}. Ты играешь белыми.`,
         }).catch(() => {}),
       )
     if (p.black.telegramId)
@@ -783,7 +818,7 @@ app.post('/api/admin/tournaments/:id/start', async (req: AuthedRequest, res) => 
           chatId: p.black.telegramId,
           messageType: 'pairing_published',
           payload: { tournamentId, roundNumber: 1, tableNumber: p.table, opponent: p.white.name, color: 'black' },
-          text: `Тур №1. Ваш соперник: ${p.white.name}. Ваш цвет: чёрные. Стол №${p.table}.`,
+          text: `Тур №1. Стол №${p.table}. Твой соперник: ${p.white.name}. Ты играешь чёрными.`,
         }).catch(() => {}),
       )
   }
@@ -795,7 +830,7 @@ app.post('/api/admin/tournaments/:id/start', async (req: AuthedRequest, res) => 
         chatId: pairing.bye.telegramId,
         messageType: 'bye',
         payload: { tournamentId, roundNumber: 1 },
-        text: `Тур №1. У вас bye, вы получаете 1 очко.`,
+        text: `Тур №1. У тебя bye, ты получаешь 1 очко.`,
       }).catch(() => {}),
     )
   }
@@ -850,7 +885,7 @@ async function generateNextRound(req: AuthedRequest, res: express.Response) {
     if ((pending ?? []).length > 0) return res.status(400).json({ error: 'Current round is not finished' })
   }
 
-  // participants: prefer checked-in, fallback to all registered if nobody checked in yet
+  // participants: only registered + checked-in at generation moment
   const { data: regs } = await supabase
     .from('registrations')
     .select('checked_in, users(id, telegram_id, first_name, last_name, username)')
@@ -858,9 +893,7 @@ async function generateNextRound(req: AuthedRequest, res: express.Response) {
     .eq('status', 'registered')
 
   const checkedIn = (regs ?? []).filter((r: any) => r.checked_in)
-  const activeRegs = checkedIn.length > 0 ? checkedIn : (regs ?? [])
-
-  const players = activeRegs
+  const players = checkedIn
     .map((r: any) => r.users)
     .filter(Boolean)
     .map((u: any) => ({
@@ -932,7 +965,7 @@ async function generateNextRound(req: AuthedRequest, res: express.Response) {
           chatId: p.white.telegramId,
           messageType: 'pairing_published',
           payload: { tournamentId, roundNumber: nextRoundNumber, tableNumber: p.table, opponent: p.black.name, color: 'white' },
-          text: `Тур №${nextRoundNumber}. Ваш соперник: ${p.black.name}. Ваш цвет: белые. Стол №${p.table}.`,
+          text: `Тур №${nextRoundNumber}. Стол №${p.table}. Твой соперник: ${p.black.name}. Ты играешь белыми.`,
         }).catch(() => {}),
       )
     if (p.black.telegramId)
@@ -942,7 +975,7 @@ async function generateNextRound(req: AuthedRequest, res: express.Response) {
           chatId: p.black.telegramId,
           messageType: 'pairing_published',
           payload: { tournamentId, roundNumber: nextRoundNumber, tableNumber: p.table, opponent: p.white.name, color: 'black' },
-          text: `Тур №${nextRoundNumber}. Ваш соперник: ${p.white.name}. Ваш цвет: чёрные. Стол №${p.table}.`,
+          text: `Тур №${nextRoundNumber}. Стол №${p.table}. Твой соперник: ${p.white.name}. Ты играешь чёрными.`,
         }).catch(() => {}),
       )
   }
@@ -953,7 +986,7 @@ async function generateNextRound(req: AuthedRequest, res: express.Response) {
         chatId: bye.telegramId,
         messageType: 'bye',
         payload: { tournamentId, roundNumber: nextRoundNumber },
-        text: `Тур №${nextRoundNumber}. У вас bye, вы получаете 1 очко.`,
+        text: `Тур №${nextRoundNumber}. У тебя bye, ты получаешь 1 очко.`,
       }).catch(() => {}),
     )
   }
@@ -1101,10 +1134,17 @@ async function setGameResult(req: AuthedRequest, res: express.Response) {
 
   const { data: game, error: gErr } = await supabase
     .from('games')
-    .select('id, round_id, table_number, white_user_id, black_user_id, result')
+    .select('id, round_id, table_number, white_user_id, black_user_id, result, rounds!inner(tournament_id)')
     .eq('id', req.params.gameId)
     .single()
   if (gErr || !game) return res.status(404).json({ error: 'Not found' })
+
+  const { data: tour } = await supabase
+    .from('tournaments')
+    .select('status')
+    .eq('id', (game as any).rounds?.tournament_id)
+    .maybeSingle()
+  if ((tour as any)?.status === 'finished') return res.status(400).json({ error: 'Tournament is finished' })
 
   const { error } = await supabase.from('games').update({ result: parsed.data.result }).eq('id', game.id)
   if (error) return res.status(500).json({ error: 'DB error' })
@@ -1170,6 +1210,9 @@ app.get('/api/admin/tournaments/:id/standings', async (req: AuthedRequest, res) 
 
 app.post('/api/admin/tournaments/:id/finish', async (req: AuthedRequest, res) => {
   if (!requireAdmin(req, res)) return
+  const { data: t } = await supabase.from('tournaments').select('status').eq('id', req.params.id).maybeSingle()
+  if (!t) return res.status(404).json({ error: 'Not found' })
+  if ((t as any).status === 'finished') return res.status(400).json({ error: 'Tournament is already finished' })
   const { error } = await supabase.from('tournaments').update({ status: 'finished' }).eq('id', req.params.id)
   if (error) return res.status(500).json({ error: 'DB error' })
   res.json({ ok: true })
@@ -1180,24 +1223,38 @@ app.post('/api/admin/tournaments', async (req: AuthedRequest, res) => {
   if (!requireAdmin(req, res)) return
   const auth = req.auth!
   const Body = z.object({
-    title: z.string().min(1),
+    title: z.string().trim().optional(),
     description: z.string().nullable().optional(),
-    locationText: z.string().min(1),
-    startsAt: z.string().min(1),
+    locationText: z.string().trim().optional(),
+    location_text: z.string().trim().optional(),
+    startsAt: z.string().optional(),
+    starts_at: z.string().optional(),
     maxPlayers: z.number().int().positive().nullable().optional(),
+    max_players: z.number().int().positive().nullable().optional(),
+    status: z.enum(['draft', 'registration_open', 'registration_closed', 'running', 'finished']).optional(),
   })
   const parsed = Body.safeParse(req.body)
-  if (!parsed.success) return res.status(400).json({ error: 'bad_request' })
+  if (!parsed.success) return res.status(400).json({ error: 'Bad request' })
+
+  const title = (parsed.data.title ?? '').trim()
+  if (!title) return res.status(400).json({ error: 'Title is required' })
+  const locationText = (parsed.data.locationText ?? parsed.data.location_text ?? '').trim()
+  if (!locationText) return res.status(400).json({ error: 'Location is required' })
+  const startsAtRaw = parsed.data.startsAt ?? parsed.data.starts_at
+  const startsAt = startsAtRaw ? new Date(startsAtRaw) : null
+  if (!startsAt || Number.isNaN(startsAt.getTime())) return res.status(400).json({ error: 'Invalid starts_at' })
+  const status = parsed.data.status ?? 'draft'
+  const maxPlayers = parsed.data.maxPlayers ?? parsed.data.max_players ?? null
 
   const { data, error } = await supabase
     .from('tournaments')
     .insert({
-      title: parsed.data.title,
+      title,
       description: parsed.data.description ?? null,
-      location_text: parsed.data.locationText,
-      starts_at: parsed.data.startsAt,
-      status: 'draft',
-      max_players: parsed.data.maxPlayers ?? null,
+      location_text: locationText,
+      starts_at: startsAt.toISOString(),
+      status,
+      max_players: maxPlayers,
       created_by: auth.userId,
     })
     .select('id')
@@ -1205,6 +1262,177 @@ app.post('/api/admin/tournaments', async (req: AuthedRequest, res) => {
   if (error || !data) return res.status(500).json({ error: 'DB error' })
 
   res.json({ ok: true, id: data.id })
+})
+
+app.get('/api/tournaments/:id/my-current-game', async (req: AuthedRequest, res) => {
+  if (!requireAuth(req, res)) return
+  const tournamentId = req.params.id
+
+  const { data: round } = await supabase
+    .from('rounds')
+    .select('id, round_number, status')
+    .eq('tournament_id', tournamentId)
+    .eq('status', 'published')
+    .order('round_number', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!round) return res.json({ game: null })
+
+  const { data: game, error } = await supabase
+    .from('games')
+    .select(
+      'id, table_number, result, white_user_id, black_user_id, white:users!games_white_user_id_fkey(id, username, first_name, last_name), black:users!games_black_user_id_fkey(id, username, first_name, last_name)',
+    )
+    .eq('round_id', (round as any).id)
+    .or(`white_user_id.eq.${req.auth.userId},black_user_id.eq.${req.auth.userId}`)
+    .maybeSingle()
+  if (error) return res.status(500).json({ error: 'DB error' })
+  if (!game) return res.json({ game: null })
+
+  const isWhite = (game as any).white_user_id === req.auth.userId
+  const opponent = isWhite ? (game as any).black : (game as any).white
+  const color = (game as any).result === 'bye' || !(game as any).black_user_id ? null : isWhite ? 'white' : 'black'
+  res.json({
+    game: {
+      roundNumber: (round as any).round_number,
+      tableNumber: (game as any).table_number,
+      color,
+      opponent: opponent
+        ? {
+            id: opponent.id,
+            username: opponent.username,
+            firstName: opponent.first_name,
+            lastName: opponent.last_name,
+            displayName: displayName(opponent),
+          }
+        : null,
+      result: (game as any).result,
+      isBye: (game as any).result === 'bye' || !(game as any).black_user_id,
+    },
+  })
+})
+
+app.get('/api/tournaments/:id/final-standings', async (req: AuthedRequest, res) => {
+  const tournamentId = req.params.id
+  const { data: t, error: tErr } = await supabase.from('tournaments').select('status').eq('id', tournamentId).maybeSingle()
+  if (tErr || !t) return res.status(404).json({ error: 'Not found' })
+  if ((t as any).status !== 'finished' && req.auth?.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
+
+  const { data: regs, error: rErr } = await supabase
+    .from('registrations')
+    .select('users(id, username, first_name, last_name)')
+    .eq('tournament_id', tournamentId)
+    .eq('status', 'registered')
+  if (rErr) return res.status(500).json({ error: 'DB error' })
+
+  const users = (regs ?? []).map((r: any) => r.users).filter(Boolean)
+  const userMap = new Map<string, any>()
+  for (const u of users) userMap.set(u.id, u)
+
+  const { data: games, error: gErr } = await supabase
+    .from('games')
+    .select('white_user_id, black_user_id, result, rounds!inner(tournament_id)')
+    .eq('rounds.tournament_id', tournamentId)
+  if (gErr) return res.status(500).json({ error: 'DB error' })
+
+  const points = computePointsFromGames((games ?? []) as any)
+  const stats = new Map<string, { wins: number; draws: number; losses: number }>()
+  const ensureStats = (id: string) => {
+    if (!stats.has(id)) stats.set(id, { wins: 0, draws: 0, losses: 0 })
+    return stats.get(id)!
+  }
+  for (const g of games ?? []) {
+    if (!(g as any).white_user_id) continue
+    const whiteId = (g as any).white_user_id as string
+    const blackId = ((g as any).black_user_id as string | null) ?? null
+    if ((g as any).result === '1-0' && blackId) {
+      ensureStats(whiteId).wins += 1
+      ensureStats(blackId).losses += 1
+    } else if ((g as any).result === '0-1' && blackId) {
+      ensureStats(whiteId).losses += 1
+      ensureStats(blackId).wins += 1
+    } else if ((g as any).result === '0.5-0.5' && blackId) {
+      ensureStats(whiteId).draws += 1
+      ensureStats(blackId).draws += 1
+    }
+  }
+
+  const standings = [...userMap.keys()]
+    .map((id) => {
+      const u = userMap.get(id)
+      const s = ensureStats(id)
+      return { userId: id, name: displayName(u ?? {}), points: points.get(id) ?? 0, ...s }
+    })
+    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
+    .map((row, idx) => ({ place: idx + 1, ...row }))
+
+  res.json({ standings })
+})
+
+app.post('/api/admin/tournaments/:id/add-telegram-participant', async (req: AuthedRequest, res) => {
+  if (!requireAdmin(req, res)) return
+  const Body = z.object({ username: z.string().min(1) })
+  const parsed = Body.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'Bad request' })
+  const tournamentId = req.params.id
+
+  const { data: tournament } = await supabase
+    .from('tournaments')
+    .select('id, status, title')
+    .eq('id', tournamentId)
+    .maybeSingle()
+  if (!tournament) return res.status(404).json({ error: 'Not found' })
+  if ((tournament as any).status === 'finished') return res.status(400).json({ error: 'Tournament is finished' })
+
+  const normalizedUsername = parsed.data.username.trim().replace(/^@+/, '').toLowerCase()
+  const { data: user } = await supabase
+    .from('users')
+    .select('id, telegram_id, username')
+    .ilike('username', normalizedUsername)
+    .maybeSingle()
+  if (!user) {
+    return res.status(404).json({ error: 'Пользователь не найден. Попроси его сначала открыть бота /start.' })
+  }
+
+  const { data: existing } = await supabase
+    .from('registrations')
+    .select('id, status, checked_in')
+    .eq('tournament_id', tournamentId)
+    .eq('user_id', (user as any).id)
+    .maybeSingle()
+
+  if (existing) {
+    const { error: updErr } = await supabase
+      .from('registrations')
+      .update({ status: 'registered', checked_in: true, source: 'telegram' })
+      .eq('id', (existing as any).id)
+    if (updErr) return res.status(500).json({ error: 'DB error' })
+  } else {
+    const { error: insertErr } = await supabase.from('registrations').insert({
+      tournament_id: tournamentId,
+      user_id: (user as any).id,
+      source: 'telegram',
+      status: 'registered',
+      checked_in: true,
+    })
+    if (insertErr) return res.status(500).json({ error: 'DB error' })
+  }
+
+  const chatId = (user as any).telegram_id
+  if (typeof chatId === 'number' && chatId > 0) {
+    await sendBotMessageLogged({
+      userId: (user as any).id,
+      chatId,
+      messageType: 'late_participant_added',
+      payload: { tournamentId, title: (tournament as any).title },
+      text: `Тебя добавили в турнир ${(tournament as any).title}. Ты начнёшь играть со следующего тура.`,
+    }).catch(() => {})
+  }
+
+  res.json({ ok: true })
 })
 
 app.listen(env.PORT, () => {
