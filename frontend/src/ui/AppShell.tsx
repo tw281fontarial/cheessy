@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { api } from '../lib/api'
-import { isDevMode } from '../lib/devMode'
+import { api, setAuthToken } from '../lib/api'
+import { canUseDevPanelForUser, isDevMode, isInsideTelegramWebApp } from '../lib/devMode'
 import { getTelegramWebApp } from '../lib/telegram'
 
 function TabLink(props: { to: string; label: string }) {
@@ -52,6 +52,32 @@ export function AppShell() {
     onSuccess: () => me.refetch(),
   })
 
+  const telegramLogin = useMutation({
+    mutationFn: async () => {
+      const wa = getTelegramWebApp()
+      const initData = wa?.initData ?? ''
+      const tgUser = wa?.initDataUnsafe && (wa.initDataUnsafe as any).user
+      const data = await api<any>('/api/auth/telegram', {
+        method: 'POST',
+        body: JSON.stringify({
+          initData,
+          user: tgUser
+            ? {
+                id: tgUser.id,
+                username: tgUser.username ?? null,
+                first_name: tgUser.first_name ?? null,
+                last_name: tgUser.last_name ?? null,
+                photo_url: tgUser.photo_url ?? null,
+              }
+            : null,
+        }),
+      })
+      if (data?.token) setAuthToken(data.token)
+      return data
+    },
+    onSuccess: () => me.refetch(),
+  })
+
   useEffect(() => {
     const wa = getTelegramWebApp()
     wa?.ready?.()
@@ -67,6 +93,15 @@ export function AppShell() {
   }, [devMode, me.isError, me.isSuccess, devLogin.isPending, devLogin.isSuccess])
 
   useEffect(() => {
+    // production/telegram first-launch flow
+    if (devMode) return
+    if (!isInsideTelegramWebApp()) return
+    if (me.isSuccess) return
+    if (telegramLogin.isPending || telegramLogin.isSuccess) return
+    if (me.isError) telegramLogin.mutate()
+  }, [devMode, me.isError, me.isSuccess, telegramLogin.isPending, telegramLogin.isSuccess])
+
+  useEffect(() => {
     if (!devMode) return
     localStorage.setItem('cheessy_dev_identity', devIdentity)
     // re-login immediately on switch
@@ -76,6 +111,8 @@ export function AppShell() {
 
   const showBottomNav = !location.pathname.startsWith('/admin')
   const isAdmin = (me.data as any)?.user?.role === 'admin'
+  const currentUsername = ((me.data as any)?.user?.username as string | null | undefined) ?? null
+  const canShowDevPanel = canUseDevPanelForUser(currentUsername)
 
   return (
     <div className="min-h-dvh bg-chess">
@@ -87,35 +124,39 @@ export function AppShell() {
               <div className="text-lg font-black">Турниры по шахматам офлайн</div>
             </div>
           </Link>
-          {devMode ? (
+          {canShowDevPanel ? (
             <div className="mt-3 sticker px-4 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-left text-xs font-black uppercase tracking-wider">
-                  DEV MODE: {devIdentity === 'admin' ? 'test_admin' : 'test_player_1'}
+              {devMode ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-left text-xs font-black uppercase tracking-wider">
+                    DEV MODE: {devIdentity === 'admin' ? 'test_admin' : 'test_player_1'}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      className={[
+                        'rounded-lg border-2 border-black px-2 py-1 text-[11px] font-black uppercase',
+                        devIdentity === 'player' ? 'bg-[#ffe600]' : 'bg-white',
+                      ].join(' ')}
+                      onClick={() => setDevIdentity('player')}
+                      type="button"
+                    >
+                      player
+                    </button>
+                    <button
+                      className={[
+                        'rounded-lg border-2 border-black px-2 py-1 text-[11px] font-black uppercase',
+                        devIdentity === 'admin' ? 'bg-[#ffe600]' : 'bg-white',
+                      ].join(' ')}
+                      onClick={() => setDevIdentity('admin')}
+                      type="button"
+                    >
+                      admin
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    className={[
-                      'rounded-lg border-2 border-black px-2 py-1 text-[11px] font-black uppercase',
-                      devIdentity === 'player' ? 'bg-[#ffe600]' : 'bg-white',
-                    ].join(' ')}
-                    onClick={() => setDevIdentity('player')}
-                    type="button"
-                  >
-                    player
-                  </button>
-                  <button
-                    className={[
-                      'rounded-lg border-2 border-black px-2 py-1 text-[11px] font-black uppercase',
-                      devIdentity === 'admin' ? 'bg-[#ffe600]' : 'bg-white',
-                    ].join(' ')}
-                    onClick={() => setDevIdentity('admin')}
-                    type="button"
-                  >
-                    admin
-                  </button>
-                </div>
-              </div>
+              ) : (
+                <div className="text-left text-xs font-black uppercase tracking-wider">DEV TOOLS ENABLED</div>
+              )}
             </div>
           ) : null}
 

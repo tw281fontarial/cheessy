@@ -1,9 +1,17 @@
+import { env, isLocalhostHost } from './env'
 import { getTelegramWebApp } from './telegram'
 
 export function isDevMode() {
-  // If not running inside Telegram Mini App, enable dev mode.
-  const wa = getTelegramWebApp()
-  const initData = wa?.initData ?? ''
-  return !initData
+  return isLocalhostHost(window.location.hostname)
+}
+
+export function canUseDevPanelForUser(username: string | null | undefined) {
+  if (isDevMode()) return true
+  if (!username) return false
+  return env.devAllowedUsernames.includes(username.toLowerCase())
+}
+
+export function isInsideTelegramWebApp() {
+  return Boolean(getTelegramWebApp())
 }
 

@@ -15,12 +15,28 @@ const env = loadEnv()
 const supabase = createSupabaseAdmin(env)
 
 const app = express()
+const parseAllowedOrigins = () => {
+  const base = [env.APP_BASE_URL]
+  const extra = (env.APP_BASE_URLS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const dev = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://127.0.0.1:5173']
+  return [...new Set([...base, ...extra, ...dev])]
+}
+const allowedOrigins = parseAllowedOrigins()
 app.use(
   cors({
-    origin: env.APP_BASE_URL,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true)
+      if (allowedOrigins.includes(origin)) return cb(null, true)
+      return cb(new Error(`Origin not allowed: ${origin}`))
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   }),
 )
+app.options('*', cors())
 app.use(express.json())
 app.use(cookieParser())
 app.use(authMiddleware(env))
@@ -83,14 +99,26 @@ function displayName(u: { username?: string | null; first_name?: string | null; 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
 app.post('/api/auth/telegram', async (req: AuthedRequest, res) => {
-  const Body = z.object({ initData: z.string().min(1) })
+  const Body = z.object({
+    initData: z.string().min(1),
+    user: z
+      .object({
+        id: z.number().int(),
+        username: z.string().nullable().optional(),
+        first_name: z.string().nullable().optional(),
+        last_name: z.string().nullable().optional(),
+        photo_url: z.string().nullable().optional(),
+      })
+      .nullable()
+      .optional(),
+  })
   const body = Body.safeParse(req.body)
-  if (!body.success) return res.status(400).json({ error: 'bad_request' })
+  if (!body.success) return res.status(400).json({ error: 'Bad request' })
 
   const ok = verifyTelegramInitData(body.data.initData, env.TELEGRAM_BOT_TOKEN)
-  if (!ok) return res.status(401).json({ error: 'invalid_init_data' })
+  if (!ok) return res.status(401).json({ error: 'Invalid Telegram initData' })
 
-  const tgUser = getTelegramUserFromInitData(body.data.initData)
+  const tgUser = getTelegramUserFromInitData(body.data.initData) ?? (body.data.user as any)
   if (!tgUser?.id) return res.status(401).json({ error: 'missing_user' })
 
   // Upsert user
@@ -117,11 +145,22 @@ app.post('/api/auth/telegram', async (req: AuthedRequest, res) => {
   res.cookie('cheessy_token', token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false,
+    secure: env.NODE_ENV === 'production',
     maxAge: 30 * 24 * 60 * 60 * 1000,
   })
 
-  res.json({ ok: true, role })
+  res.json({
+    ok: true,
+    token,
+    user: {
+      id: userRow.id,
+      telegramId: tgUser.id,
+      username: tgUser.username ?? null,
+      firstName: tgUser.first_name ?? null,
+      lastName: tgUser.last_name ?? null,
+      role,
+    },
+  })
 })
 
 app.post('/api/auth/dev-login', async (req: AuthedRequest, res) => {
@@ -160,7 +199,7 @@ app.post('/api/auth/dev-login', async (req: AuthedRequest, res) => {
   res.cookie('cheessy_token', token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false,
+    secure: env.NODE_ENV === 'production',
     maxAge: 30 * 24 * 60 * 60 * 1000,
   })
 

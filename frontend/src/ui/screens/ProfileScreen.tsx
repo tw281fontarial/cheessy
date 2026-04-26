@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { api } from '../../lib/api'
+import { api, setAuthToken } from '../../lib/api'
 import { getParticipantDisplay } from '../../lib/display'
 import { isDevMode } from '../../lib/devMode'
 import { getTelegramWebApp } from '../../lib/telegram'
@@ -34,9 +34,27 @@ export function ProfileScreen() {
   })
 
   const login = useMutation({
-    mutationFn: () => {
-      const initData = getTelegramWebApp()?.initData ?? ''
-      return api('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData }) })
+    mutationFn: async () => {
+      const wa = getTelegramWebApp()
+      const initData = wa?.initData ?? ''
+      const tgUser = wa?.initDataUnsafe && (wa.initDataUnsafe as any).user
+      const data = await api<any>('/api/auth/telegram', {
+        method: 'POST',
+        body: JSON.stringify({
+          initData,
+          user: tgUser
+            ? {
+                id: tgUser.id,
+                username: tgUser.username ?? null,
+                first_name: tgUser.first_name ?? null,
+                last_name: tgUser.last_name ?? null,
+                photo_url: tgUser.photo_url ?? null,
+              }
+            : null,
+        }),
+      })
+      if (data?.token) setAuthToken(data.token)
+      return data
     },
     onSuccess: () => me.refetch(),
   })
@@ -78,6 +96,7 @@ export function ProfileScreen() {
             <div className="inline-block rounded-full border-2 border-black px-2 py-1 text-[11px] font-black uppercase">
               role: {me.data.user.role}
             </div>
+            <div className="text-xs opacity-70">telegram id: {me.data.user.telegramId}</div>
             {me.data.user.role === 'admin' ? (
               <div className="pt-2">
                 <a className="font-black underline" href="/admin">

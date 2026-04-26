@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../../lib/api'
+import { env } from '../../lib/env'
 import { StickerCard } from '../components/StickerCard'
 
 type TournamentListItem = {
@@ -29,7 +30,12 @@ export function TournamentsScreen() {
       <StickerCard title="Турниры">
         {q.isLoading ? <div className="text-sm">Загружаю…</div> : null}
         {q.isError ? (
-          <div className="text-sm text-red-700">Ошибка: {(q.error as Error).message}</div>
+          <div className="text-sm text-red-700">
+            <div>Не удалось загрузить турниры</div>
+            <div className="mt-1 text-xs opacity-80">
+              API: {env.apiBaseUrl ?? 'missing'} · {(q.error as Error).message}
+            </div>
+          </div>
         ) : null}
         {q.data ? (
           <div className="space-y-3">

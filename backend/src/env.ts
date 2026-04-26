@@ -2,7 +2,9 @@ import { z } from 'zod'
 
 const EnvSchema = z.object({
   PORT: z.coerce.number().default(4000),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   APP_BASE_URL: z.string().default('http://localhost:5173'),
+  APP_BASE_URLS: z.string().optional(),
   JWT_SECRET: z.string().min(16),
 
   TELEGRAM_BOT_TOKEN: z.string().min(1),
