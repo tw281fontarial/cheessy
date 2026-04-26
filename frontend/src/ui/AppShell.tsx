@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api, setAuthToken } from '../lib/api'
 import { canUseDevPanelForUser, isDevMode, isInsideTelegramWebApp } from '../lib/devMode'
-import { getTelegramWebApp } from '../lib/telegram'
+import { getTelegramWebApp, waitForTelegramWebApp } from '../lib/telegram'
 
 function TabLink(props: { to: string; label: string }) {
   return (
@@ -24,6 +24,7 @@ function TabLink(props: { to: string; label: string }) {
 export function AppShell() {
   const location = useLocation()
   const [showInlineOnboarding, setShowInlineOnboarding] = useState(false)
+  const [telegramSdkResolved, setTelegramSdkResolved] = useState(false)
 
   const devMode = isDevMode()
   const [devIdentity, setDevIdentity] = useState<'player' | 'admin'>(() => {
@@ -89,9 +90,17 @@ export function AppShell() {
   })
 
   useEffect(() => {
-    const wa = getTelegramWebApp()
-    wa?.ready?.()
-    wa?.expand?.()
+    let cancelled = false
+    ;(async () => {
+      const wa = await waitForTelegramWebApp()
+      if (cancelled) return
+      wa?.ready?.()
+      wa?.expand?.()
+      setTelegramSdkResolved(true)
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -106,24 +115,36 @@ export function AppShell() {
     if (devMode) return
     if (me.isSuccess) return
     if (telegramLogin.isPending || telegramLogin.isSuccess) return
-    const wa = getTelegramWebApp()
-    const initData = wa?.initData ?? ''
-    const unsafeUser = wa?.initDataUnsafe && (wa.initDataUnsafe as any).user
-    if (!isInsideTelegramWebApp()) return
-    if (!initData) {
-      localStorage.setItem('cheessy_auth_request_status', 'error')
-      localStorage.setItem('cheessy_auth_error', 'Missing Telegram initData')
-      return
+    if (!telegramSdkResolved) return
+
+    let cancelled = false
+    ;(async () => {
+      const wa = await waitForTelegramWebApp()
+      if (cancelled) return
+      if (!wa || !isInsideTelegramWebApp()) return
+
+      const initData = wa.initData ?? ''
+      const unsafeUser = wa.initDataUnsafe && (wa.initDataUnsafe as any).user
+      if (!initData) {
+        localStorage.setItem('cheessy_auth_request_status', 'error')
+        localStorage.setItem('cheessy_auth_error', 'Missing Telegram initData')
+        return
+      }
+      if (!unsafeUser?.id) {
+        localStorage.setItem('cheessy_auth_request_status', 'error')
+        localStorage.setItem('cheessy_auth_error', 'Missing Telegram user in initDataUnsafe')
+        return
+      }
+
+      localStorage.setItem('cheessy_auth_request_status', 'loading')
+      localStorage.removeItem('cheessy_auth_error')
+      telegramLogin.mutate()
+    })()
+
+    return () => {
+      cancelled = true
     }
-    if (!unsafeUser?.id) {
-      localStorage.setItem('cheessy_auth_request_status', 'error')
-      localStorage.setItem('cheessy_auth_error', 'Missing Telegram user in initDataUnsafe')
-      return
-    }
-    localStorage.setItem('cheessy_auth_request_status', 'loading')
-    localStorage.removeItem('cheessy_auth_error')
-    telegramLogin.mutate()
-  }, [devMode, me.isSuccess, telegramLogin.isPending, telegramLogin.isSuccess])
+  }, [devMode, me.isSuccess, telegramLogin.isPending, telegramLogin.isSuccess, telegramSdkResolved])
 
   useEffect(() => {
     if (!devMode) return

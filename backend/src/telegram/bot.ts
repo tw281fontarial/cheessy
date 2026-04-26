@@ -18,6 +18,7 @@ export async function sendTelegramMessage(env: Env, chatId: number, text: string
 }
 
 export async function sendTelegramMessageWithWebAppButton(env: Env, chatId: number) {
+  const appBaseUrl = env.APP_BASE_URL.replace(/\/+$/, '') || env.APP_BASE_URL
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`
   const res = await fetch(url, {
     method: 'POST',
@@ -33,7 +34,7 @@ export async function sendTelegramMessageWithWebAppButton(env: Env, chatId: numb
             {
               text: 'Открыть Cheessy',
               web_app: {
-                url: env.APP_BASE_URL,
+                url: appBaseUrl,
               },
             },
           ],

@@ -61,6 +61,7 @@ export function ProfileScreen() {
             )}
 
             <div className="rounded-xl border border-white/15 bg-[#0f172a] p-3 text-xs text-white">
+              <div>telegramScriptLoaded: {tgDebug.telegramScriptLoaded ? 'true' : 'false'}</div>
               <div>hasTelegramObject: {tgDebug.hasTelegramObject ? 'true' : 'false'}</div>
               <div>hasWebApp: {tgDebug.hasWebApp ? 'true' : 'false'}</div>
               <div>initDataLength: {tgDebug.initDataLength}</div>
@@ -68,9 +69,12 @@ export function ProfileScreen() {
               <div>hasUnsafeUser: {tgDebug.hasUnsafeUser ? 'true' : 'false'}</div>
               <div>unsafeUserId: {tgDebug.unsafeUserId ?? '—'}</div>
               <div>unsafeUsername: {tgDebug.unsafeUsername ?? '—'}</div>
+              <div>isLikelyTelegramWebView: {tgDebug.isLikelyTelegramWebView ? 'true' : 'false'}</div>
               <div>authRequestStatus: {authRequestStatus}</div>
               <div>authError: {authError ?? (me.error as Error).message}</div>
               <div>apiBaseUrl: {env.apiBaseUrl ?? 'missing'}</div>
+              <div>currentUrl: {tgDebug.currentUrl}</div>
+              <div>userAgent: {tgDebug.userAgent}</div>
             </div>
           </div>
         ) : null}
