@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api, setAuthToken } from '../lib/api'
 import { canUseDevPanelForUser, isDevMode, isInsideTelegramWebApp } from '../lib/devMode'
 import { getTelegramWebApp } from '../lib/telegram'
@@ -23,6 +23,7 @@ function TabLink(props: { to: string; label: string }) {
 
 export function AppShell() {
   const location = useLocation()
+  const [showInlineOnboarding, setShowInlineOnboarding] = useState(false)
 
   const devMode = isDevMode()
   const [devIdentity, setDevIdentity] = useState<'player' | 'admin'>(() => {
@@ -114,18 +115,46 @@ export function AppShell() {
   const currentUsername = ((me.data as any)?.user?.username as string | null | undefined) ?? null
   const canShowDevPanel = canUseDevPanelForUser(currentUsername)
 
+  useEffect(() => {
+    if (!isInsideTelegramWebApp()) return
+    if (!me.data) return
+
+    const telegramId = (me.data as any)?.user?.telegramId
+    const key = `cheessy_onboarding_seen_${telegramId ?? 'guest'}`
+    if (localStorage.getItem(key) === '1') return
+
+    const wa = getTelegramWebApp()
+    const message =
+      'Привет! Это Cheessy — мини-приложение для шахматных турниров.\n\n' +
+      'Турниры — смотри турниры и регистрируйся.\n' +
+      'Профиль — смотри информацию о себе и свои регистрации.\n' +
+      'Мерч — здесь позже можно будет купить мерч клуба.'
+
+    localStorage.setItem(key, '1')
+
+    if (wa?.showPopup) {
+      wa.showPopup({
+        title: 'Cheessy',
+        message,
+        buttons: [{ id: 'go', type: 'default', text: 'Погнали' }],
+      })
+      return
+    }
+
+    if (wa?.showAlert) {
+      wa.showAlert(message)
+      return
+    }
+
+    setShowInlineOnboarding(true)
+  }, [me.data])
+
   return (
     <div className="min-h-dvh bg-chess">
       <div className="mx-auto max-w-md min-h-dvh bg-white border-x-4 border-black">
         <header className="px-4 pt-4">
-          <Link to="/tournaments" className="block sticker sticker-yellow px-4 py-3">
-            <div className="text-left">
-              <div className="text-xs font-black uppercase tracking-wider">CHEESSY SPB</div>
-              <div className="text-lg font-black">Турниры по шахматам офлайн</div>
-            </div>
-          </Link>
           {canShowDevPanel ? (
-            <div className="mt-3 sticker px-4 py-2">
+            <div className="sticker px-4 py-2">
               {devMode ? (
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-left text-xs font-black uppercase tracking-wider">
@@ -162,19 +191,37 @@ export function AppShell() {
 
           {isAdmin ? (
             <div className="mt-3 flex justify-end">
-              <Link
-                to="/admin"
+              <a
+                href="/admin"
                 className="rounded-xl border-4 border-black bg-black px-4 py-2 text-xs font-black uppercase tracking-wide text-white"
               >
                 Админка
-              </Link>
+              </a>
             </div>
           ) : null}
         </header>
 
-        <main className={['px-4 pb-28', showBottomNav ? 'pt-4' : 'pt-4 pb-6'].join(' ')}>
+        <main className={['px-4 pb-28', showBottomNav ? 'pt-3' : 'pt-3 pb-6'].join(' ')}>
           <Outlet />
         </main>
+
+        {showInlineOnboarding ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-sm sticker bg-white p-4">
+              <div className="text-base font-black">Привет! Это Cheessy</div>
+              <div className="mt-2 text-sm whitespace-pre-line">
+                {'Турниры — смотри турниры и регистрируйся.\nПрофиль — смотри информацию о себе и свои регистрации.\nМерч — здесь позже можно будет купить мерч клуба.'}
+              </div>
+              <button
+                type="button"
+                className="mt-4 w-full rounded-xl border-4 border-black bg-[#ffe600] px-4 py-2 text-sm font-black uppercase"
+                onClick={() => setShowInlineOnboarding(false)}
+              >
+                Погнали
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {showBottomNav ? (
           <nav className="fixed bottom-0 left-0 right-0">

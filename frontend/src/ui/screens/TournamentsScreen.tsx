@@ -20,13 +20,6 @@ export function TournamentsScreen() {
 
   return (
     <div className="space-y-4">
-      <StickerCard title="Афиша">
-        <div className="text-sm">
-          <div className="font-bold">Санкт‑Петербург</div>
-          <div className="opacity-80">Открывай турнир и регистрируйся в один тап.</div>
-        </div>
-      </StickerCard>
-
       <StickerCard title="Турниры">
         {q.isLoading ? <div className="text-sm">Загружаю…</div> : null}
         {q.isError ? (
