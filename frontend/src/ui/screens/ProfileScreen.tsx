@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
-import { getParticipantDisplay } from '../../lib/display'
 import { isDevMode, isInsideTelegramWebApp } from '../../lib/devMode'
 import { env } from '../../lib/env'
 import { getTelegramDebugInfo } from '../../lib/telegram'
@@ -47,13 +46,9 @@ type ProfileSummary = {
   }>
   stats: {
     tournamentsPlayed: number
-    gamesPlayed: number
     wins: number
     draws: number
     losses: number
-    byes: number
-    totalPoints: number
-    avgPointsPerTournament: number
   }
 }
 
@@ -107,6 +102,12 @@ export function ProfileScreen() {
     return result
   }
 
+  const profilePublicName = profile.data
+    ? profile.data.upcomingTournaments.find((t) => t.playerName)?.playerName ??
+      profile.data.history.find((h) => h.playerName)?.playerName ??
+      profile.data.user.defaultPlayerName
+    : null
+
   return (
     <div className="space-y-4">
       <StickerCard title="Профиль">
@@ -151,27 +152,18 @@ export function ProfileScreen() {
         {profile.data ? (
           <div className="space-y-2 text-sm">
             {(() => {
-              const disp = getParticipantDisplay({
-                username: profile.data.user.username,
-                firstName: profile.data.user.firstName,
-                lastName: profile.data.user.lastName,
-              })
+              const fullName = [profile.data.user.firstName, profile.data.user.lastName].filter(Boolean).join(' ').trim()
               return (
                 <>
-                  <div className="font-black">{disp.primary}</div>
+                  {profilePublicName ? <div className="font-black">{profilePublicName}</div> : null}
                   {profile.data.user.username ? <div className="opacity-80">@{profile.data.user.username}</div> : null}
-                  {disp.secondary ? <div className="opacity-80">{disp.secondary}</div> : null}
+                  {fullName ? <div className="opacity-80">{fullName}</div> : null}
                 </>
               )
             })()}
-            <div className="inline-block rounded-full border border-white/15 bg-[#0f172a] px-2 py-1 text-[11px] font-bold uppercase text-white">
+            <div className="inline-block rounded-full border border-white/15 bg-[#1c1c1e] px-2 py-1 text-[11px] font-bold uppercase text-white">
               {profile.data.user.role === 'admin' ? 'Админ' : 'Участник'}
             </div>
-            {profile.data.user.role === 'admin' ? (
-              <div className="inline-block rounded-full border border-[#ffe600]/50 bg-[#ffe600] px-2 py-1 text-[11px] font-bold uppercase text-black">
-                Админ
-              </div>
-            ) : null}
             {(devMode || profile.data.user.role === 'admin') && profile.data.user.telegramId ? (
               <div className="text-xs opacity-70">Telegram ID: {profile.data.user.telegramId}</div>
             ) : null}
@@ -186,13 +178,10 @@ export function ProfileScreen() {
         ) : null}
       </StickerCard>
 
-      <StickerCard title="Сейчас играешь">
-        {profile.data ? (
+      {profile.data?.currentGames.length ? (
+        <StickerCard title="Сейчас играешь">
           <div className="space-y-2">
-            {profile.data.currentGames.length === 0 ? (
-              <div className="text-sm opacity-80">Активных партий пока нет.</div>
-            ) : (
-              profile.data.currentGames.map((g) => (
+            {profile.data.currentGames.map((g) => (
                 <div key={`${g.tournamentId}-${g.roundNumber}-${g.tableNumber}`} className="rounded-2xl border border-white/15 bg-[#0f172a] p-3 text-white">
                   <div className="text-sm font-black">{g.tournamentTitle}</div>
                   {g.isBye ? (
@@ -215,13 +204,10 @@ export function ProfileScreen() {
                     </a>
                   </div>
                 </div>
-              ))
-            )}
+            ))}
           </div>
-        ) : (
-          <div className="text-sm opacity-80">Войди, чтобы видеть партии.</div>
-        )}
-      </StickerCard>
+        </StickerCard>
+      ) : null}
 
       <StickerCard title="Ближайшие турниры">
         {profile.data ? (
@@ -254,13 +240,9 @@ export function ProfileScreen() {
         {profile.data ? (
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="rounded-xl border border-white/15 bg-[#0f172a] p-2">Турниров: {profile.data.stats.tournamentsPlayed}</div>
-            <div className="rounded-xl border border-white/15 bg-[#0f172a] p-2">Партий: {profile.data.stats.gamesPlayed}</div>
             <div className="rounded-xl border border-white/15 bg-[#0f172a] p-2">Победы: {profile.data.stats.wins}</div>
             <div className="rounded-xl border border-white/15 bg-[#0f172a] p-2">Ничьи: {profile.data.stats.draws}</div>
             <div className="rounded-xl border border-white/15 bg-[#0f172a] p-2">Поражения: {profile.data.stats.losses}</div>
-            <div className="rounded-xl border border-white/15 bg-[#0f172a] p-2">Bye: {profile.data.stats.byes}</div>
-            <div className="rounded-xl border border-white/15 bg-[#0f172a] p-2">Очков всего: {profile.data.stats.totalPoints}</div>
-            <div className="rounded-xl border border-white/15 bg-[#0f172a] p-2">Среднее: {profile.data.stats.avgPointsPerTournament}</div>
           </div>
         ) : (
           <div className="text-sm opacity-80">Войди, чтобы увидеть статистику.</div>

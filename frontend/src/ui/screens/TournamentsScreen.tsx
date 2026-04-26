@@ -11,6 +11,8 @@ type TournamentListItem = {
   startsAt: string
   locationText: string
   status: string
+  posterUrl?: string | null
+  format?: string | null
 }
 
 export function TournamentsScreen() {
@@ -39,20 +41,41 @@ export function TournamentsScreen() {
             {q.data.tournaments.length === 0 ? (
               <div className="text-sm opacity-80">Пока пусто. Админ добавит турнир вручную.</div>
             ) : (
-              active.map((t) => (
-                <Link
-                  key={t.id}
-                  to={`/tournaments/${t.id}`}
-                  className="block rounded-2xl border border-white/15 bg-[#0f172a] p-3 hover:border-[#ffe600]/70"
-                >
-                  <div className="text-base font-bold">{t.title}</div>
-                  <div className="text-xs font-bold opacity-80">{new Date(t.startsAt).toLocaleString()}</div>
-                  <div className="text-xs opacity-80">{t.locationText}</div>
-                  <div className="mt-2 inline-block rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold">
-                    {statusLabel(t.status)}
-                  </div>
-                </Link>
-              ))
+              <div className="grid grid-cols-2 gap-3">
+                {active.map((t) => (
+                  <Link
+                    key={t.id}
+                    to={`/tournaments/${t.id}`}
+                    className="overflow-hidden rounded-2xl border border-white/15 bg-[var(--tg-theme-secondary-bg-color,#1c1c1e)] hover:border-[#2AABEE]"
+                  >
+                    <div className="aspect-[3/4] w-full bg-[#111]">
+                      {t.posterUrl ? (
+                        <img
+                          src={t.posterUrl}
+                          alt={t.title}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                          }}
+                        />
+                      ) : (
+                        <div className="flex h-full items-end bg-gradient-to-b from-[#2a2a2a] via-[#1d1d1f] to-[#151518] p-3">
+                          <div className="line-clamp-3 text-sm font-bold text-white">{t.title}</div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1 p-2.5">
+                      <div className="line-clamp-2 text-xs font-bold">{t.title}</div>
+                      <div className="text-[11px] opacity-80">{new Date(t.startsAt).toLocaleDateString()}</div>
+                      <div className="text-[11px] opacity-70">{t.format || t.locationText || 'Офлайн турнир'}</div>
+                      <div className="inline-block rounded-full border border-white/20 px-2 py-1 text-[10px] font-bold">
+                        {statusLabel(t.status)}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
             )}
             {finished.length > 0 ? (
               <div className="pt-2">

@@ -162,7 +162,7 @@ async function buildMeStats(userId: string) {
   if (finishedTournamentIds.size === 0) {
     return {
       error: null,
-      stats: { tournamentsPlayed: 0, gamesPlayed: 0, wins: 0, draws: 0, losses: 0, byes: 0, totalPoints: 0, avgPointsPerTournament: 0 },
+      stats: { tournamentsPlayed: 0, wins: 0, draws: 0, losses: 0 },
     }
   }
 
@@ -178,13 +178,9 @@ async function buildMeStats(userId: string) {
       error: null,
       stats: {
         tournamentsPlayed: finishedTournamentIds.size,
-        gamesPlayed: 0,
         wins: 0,
         draws: 0,
         losses: 0,
-        byes: 0,
-        totalPoints: 0,
-        avgPointsPerTournament: 0,
       },
     }
   }
@@ -196,12 +192,9 @@ async function buildMeStats(userId: string) {
     .not('result', 'is', null)
   if (gamesErr) return { error: gamesErr, stats: null as any }
 
-  let gamesPlayed = 0
   let wins = 0
   let draws = 0
   let losses = 0
-  let byes = 0
-  let totalPoints = 0
   for (const game of games ?? []) {
     const whiteId = (game as any).white_user_id as string | null
     const blackId = (game as any).black_user_id as string | null
@@ -210,19 +203,14 @@ async function buildMeStats(userId: string) {
 
     const isWhite = whiteId === userId
     if (result === 'bye') {
-      byes += 1
-      totalPoints += 1
       continue
     }
     if (!blackId) continue
 
-    gamesPlayed += 1
     if (result === '0.5-0.5') {
       draws += 1
-      totalPoints += 0.5
     } else if ((result === '1-0' && isWhite) || (result === '0-1' && !isWhite)) {
       wins += 1
-      totalPoints += 1
     } else if (result === '1-0' || result === '0-1') {
       losses += 1
     }
@@ -233,13 +221,9 @@ async function buildMeStats(userId: string) {
     error: null,
     stats: {
       tournamentsPlayed,
-      gamesPlayed,
       wins,
       draws,
       losses,
-      byes,
-      totalPoints,
-      avgPointsPerTournament: tournamentsPlayed > 0 ? Number((totalPoints / tournamentsPlayed).toFixed(2)) : 0,
     },
   }
 }
@@ -677,7 +661,7 @@ app.get('/api/me/profile-summary', async (req: AuthedRequest, res) => {
 app.get('/api/tournaments', async (_req, res) => {
   const { data, error } = await supabase
     .from('tournaments')
-    .select('id, title, starts_at, location_text, status, organizer_contact, format, time_control')
+    .select('id, title, starts_at, location_text, status, organizer_contact, format, time_control, poster_url')
     .order('starts_at', { ascending: true })
     .limit(200)
   if (error) return res.status(500).json({ error: 'DB error' })
@@ -699,6 +683,7 @@ app.get('/api/tournaments', async (_req, res) => {
       organizerContact: t.organizer_contact,
       format: t.format,
       timeControl: t.time_control,
+      posterUrl: t.poster_url,
     })),
   })
 })
@@ -707,7 +692,7 @@ app.get('/api/tournaments/:id', async (req: AuthedRequest, res) => {
   const id = req.params.id
   const { data: t, error } = await supabase
     .from('tournaments')
-    .select('id, title, description, starts_at, location_text, status, max_players, organizer_contact, format, time_control, important_note')
+    .select('id, title, description, starts_at, location_text, status, max_players, organizer_contact, format, time_control, important_note, poster_url')
     .eq('id', id)
     .single()
   if (error || !t) return res.status(404).json({ error: 'Not found' })
@@ -745,6 +730,7 @@ app.get('/api/tournaments/:id', async (req: AuthedRequest, res) => {
       format: t.format,
       timeControl: t.time_control,
       importantNote: t.important_note,
+      posterUrl: t.poster_url,
       registrationsCount: registrationsCount ?? 0,
       registrationOpen,
       myRegistration,
@@ -895,7 +881,7 @@ app.get('/api/admin/tournaments', async (req: AuthedRequest, res) => {
   if (!requireAdmin(req, res)) return
   const { data: tournaments, error } = await supabase
     .from('tournaments')
-    .select('id, title, description, starts_at, location_text, status, max_players, organizer_contact, format, time_control, important_note, created_at')
+    .select('id, title, description, starts_at, location_text, status, max_players, organizer_contact, format, time_control, important_note, poster_url, created_at')
     .order('starts_at', { ascending: true })
     .limit(200)
   if (error) return res.status(500).json({ error: 'DB error' })
@@ -927,6 +913,7 @@ app.get('/api/admin/tournaments', async (req: AuthedRequest, res) => {
         format: t.format,
         timeControl: t.time_control,
         importantNote: t.important_note,
+        posterUrl: t.poster_url,
         registrationsCount: counts.get(t.id) ?? 0,
       })) ?? [],
   })
@@ -936,7 +923,7 @@ app.get('/api/admin/tournaments/:id', async (req: AuthedRequest, res) => {
   if (!requireAdmin(req, res)) return
   const { data: t, error } = await supabase
     .from('tournaments')
-    .select('id, title, description, location_text, starts_at, status, max_players, organizer_contact, format, time_control, important_note')
+    .select('id, title, description, location_text, starts_at, status, max_players, organizer_contact, format, time_control, important_note, poster_url')
     .eq('id', req.params.id)
     .maybeSingle()
   if (error) return res.status(500).json({ error: 'DB error' })
@@ -954,6 +941,7 @@ app.get('/api/admin/tournaments/:id', async (req: AuthedRequest, res) => {
       format: (t as any).format,
       timeControl: (t as any).time_control,
       importantNote: (t as any).important_note,
+      posterUrl: (t as any).poster_url ?? null,
     },
   })
 })
@@ -970,6 +958,7 @@ app.patch('/api/admin/tournaments/:id', async (req: AuthedRequest, res) => {
     format: z.string().nullable().optional(),
     timeControl: z.string().nullable().optional(),
     importantNote: z.string().nullable().optional(),
+    posterUrl: z.string().url().nullable().optional(),
     status: z.enum(['draft', 'registration_open', 'registration_closed', 'running', 'finished']).optional(),
   })
   const parsed = Body.safeParse(req.body)
@@ -985,6 +974,7 @@ app.patch('/api/admin/tournaments/:id', async (req: AuthedRequest, res) => {
   if (parsed.data.format !== undefined) patch.format = parsed.data.format
   if (parsed.data.timeControl !== undefined) patch.time_control = parsed.data.timeControl
   if (parsed.data.importantNote !== undefined) patch.important_note = parsed.data.importantNote
+  if (parsed.data.posterUrl !== undefined) patch.poster_url = parsed.data.posterUrl
   if (parsed.data.status !== undefined) patch.status = parsed.data.status
 
   const { data, error } = await supabase.from('tournaments').update(patch).eq('id', req.params.id).select('id').maybeSingle()
@@ -1843,6 +1833,8 @@ app.post('/api/admin/tournaments', async (req: AuthedRequest, res) => {
     time_control: z.string().nullable().optional(),
     importantNote: z.string().nullable().optional(),
     important_note: z.string().nullable().optional(),
+    posterUrl: z.string().url().nullable().optional(),
+    poster_url: z.string().url().nullable().optional(),
     status: z.enum(['draft', 'registration_open', 'registration_closed', 'running', 'finished']).optional(),
   })
   const parsed = Body.safeParse(req.body)
@@ -1861,6 +1853,7 @@ app.post('/api/admin/tournaments', async (req: AuthedRequest, res) => {
   const format = parsed.data.format ?? null
   const timeControl = parsed.data.timeControl ?? parsed.data.time_control ?? null
   const importantNote = parsed.data.importantNote ?? parsed.data.important_note ?? null
+  const posterUrl = parsed.data.posterUrl ?? parsed.data.poster_url ?? null
 
   const { data, error } = await supabase
     .from('tournaments')
@@ -1875,6 +1868,7 @@ app.post('/api/admin/tournaments', async (req: AuthedRequest, res) => {
       format,
       time_control: timeControl,
       important_note: importantNote,
+      poster_url: posterUrl,
       created_by: auth.userId,
     })
     .select('id')

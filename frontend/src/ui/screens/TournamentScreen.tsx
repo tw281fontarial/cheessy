@@ -20,6 +20,7 @@ type Tournament = {
   format: string | null
   timeControl: string | null
   importantNote: string | null
+  posterUrl?: string | null
   registrationOpen: boolean
   myRegistration: { status: string; checkedIn: boolean; player_name?: string | null; show_telegram_username?: boolean; arrival_status?: string } | null
 }
@@ -119,6 +120,17 @@ export function TournamentScreen() {
         <>
           <StickerCard title={q.data.tournament.title} right={<span className="text-xs font-black">{statusLabel(q.data.tournament.status)}</span>}>
             <div className="space-y-2 text-sm">
+              {q.data.tournament.posterUrl ? (
+                <img
+                  src={q.data.tournament.posterUrl}
+                  alt={q.data.tournament.title}
+                  className="mb-2 h-44 w-full rounded-xl object-cover"
+                  loading="lazy"
+                  onError={(e) => {
+                    ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                  }}
+                />
+              ) : null}
               <div><span className="opacity-70">Дата и время:</span> <span className="font-bold">{new Date(q.data.tournament.startsAt).toLocaleString()}</span></div>
               <div><span className="opacity-70">Локация:</span> {q.data.tournament.locationText}</div>
               {q.data.tournament.organizerContact ? <div><span className="opacity-70">Организатор:</span> {q.data.tournament.organizerContact}</div> : null}
@@ -132,11 +144,9 @@ export function TournamentScreen() {
             </div>
           </StickerCard>
 
-          <StickerCard title="Моя партия">
-            {myGame.isLoading ? <div className="text-sm opacity-80">Загружаю…</div> : null}
-            {myGame.isError ? <div className="text-sm opacity-80">Активной партии пока нет</div> : null}
-            {myGame.data?.game ? (
-              myGame.data.game.isBye ? (
+          {myGame.data?.game ? (
+            <StickerCard title="Моя партия">
+              {myGame.data.game.isBye ? (
                 <div className="space-y-2 text-sm">
                   <div>У тебя bye в этом туре</div>
                   <div className="font-bold">Ты получаешь 1 очко</div>
@@ -152,11 +162,9 @@ export function TournamentScreen() {
                   <div>Цвет: {myGame.data.game.color === 'white' ? 'белые' : 'чёрные'}</div>
                   <div>Результат: {myGame.data.game.result ?? 'ожидается'}</div>
                 </div>
-              )
-            ) : (
-              <div className="text-sm opacity-80">Активной партии пока нет</div>
-            )}
-          </StickerCard>
+              )}
+            </StickerCard>
+          ) : null}
 
           <StickerCard title="Регистрация">
             {q.data.tournament.myRegistration ? (

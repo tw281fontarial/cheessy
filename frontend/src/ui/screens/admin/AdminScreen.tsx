@@ -18,6 +18,7 @@ type AdminTournamentListItem = {
   description?: string | null
   status: string
   registrationsCount: number
+  posterUrl?: string | null
 }
 
 export function AdminScreen() {
@@ -63,6 +64,7 @@ export function AdminScreen() {
           <div className="space-y-3">
             {tournaments.data.tournaments.map((t) => (
               <div key={t.id} className="rounded-2xl border border-white/15 bg-[#0f172a] p-3 text-white">
+                {t.posterUrl ? <img src={t.posterUrl} alt={t.title} className="mb-2 h-24 w-full rounded-xl object-cover" /> : null}
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-bold">{t.title}</div>
@@ -83,7 +85,7 @@ export function AdminScreen() {
                     Управлять
                   </Link>
                   <Link
-                    to={`/admin/tournaments/new?title=${encodeURIComponent(`${t.title} копия`)}&description=${encodeURIComponent(t.description ?? '')}&locationText=${encodeURIComponent(t.locationText ?? '')}&organizerContact=${encodeURIComponent(t.organizerContact ?? '')}&maxPlayers=${encodeURIComponent(String(t.maxPlayers ?? ''))}&format=${encodeURIComponent(t.format ?? '')}&timeControl=${encodeURIComponent(t.timeControl ?? '')}&importantNote=${encodeURIComponent(t.importantNote ?? '')}`}
+                    to={`/admin/tournaments/new?title=${encodeURIComponent(`${t.title} копия`)}&description=${encodeURIComponent(t.description ?? '')}&locationText=${encodeURIComponent(t.locationText ?? '')}&organizerContact=${encodeURIComponent(t.organizerContact ?? '')}&maxPlayers=${encodeURIComponent(String(t.maxPlayers ?? ''))}&format=${encodeURIComponent(t.format ?? '')}&timeControl=${encodeURIComponent(t.timeControl ?? '')}&importantNote=${encodeURIComponent(t.importantNote ?? '')}&posterUrl=${encodeURIComponent(t.posterUrl ?? '')}`}
                     className="ml-2 inline-block rounded-xl border border-white/20 bg-[#1f2937] px-4 py-2 text-xs font-bold uppercase text-white"
                   >
                     Создать копию

@@ -12,7 +12,7 @@ function TabLink(props: { to: string; label: string }) {
       className={({ isActive }) =>
         [
           'flex-1 text-center px-3 py-2 rounded-xl border border-black/20 font-bold tracking-wide text-sm',
-          isActive ? 'bg-[#ffe600] text-black' : 'bg-[#1f2937] text-white',
+          isActive ? 'bg-[var(--tg-theme-button-color,#2AABEE)] text-[var(--tg-theme-button-text-color,#fff)] border-transparent' : 'bg-[var(--tg-theme-secondary-bg-color,#1c1c1e)] text-[var(--tg-theme-text-color,#fff)] border-white/10',
         ].join(' ')
       }
     >
@@ -194,7 +194,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh bg-app">
-      <div className="mx-auto max-w-md min-h-dvh bg-[#111827] border-x border-white/10">
+      <div className="mx-auto max-w-md min-h-dvh border-x border-white/10 bg-[var(--tg-theme-bg-color,#0f0f0f)]">
         <header className="px-4 pt-4">
           {canShowDevPanel ? (
             <div className="sticker px-4 py-2">
@@ -206,8 +206,8 @@ export function AppShell() {
                   <div className="flex gap-2">
                     <button
                       className={[
-                        'rounded-lg border border-black/20 px-2 py-1 text-[11px] font-bold uppercase',
-                        devIdentity === 'player' ? 'bg-[#ffe600]' : 'bg-white',
+                        'rounded-lg border border-white/20 px-2 py-1 text-[11px] font-bold uppercase',
+                        devIdentity === 'player' ? 'bg-[var(--tg-theme-button-color,#2AABEE)] text-[var(--tg-theme-button-text-color,#fff)]' : 'bg-[var(--tg-theme-secondary-bg-color,#1c1c1e)]',
                       ].join(' ')}
                       onClick={() => setDevIdentity('player')}
                       type="button"
@@ -216,8 +216,8 @@ export function AppShell() {
                     </button>
                     <button
                       className={[
-                        'rounded-lg border border-black/20 px-2 py-1 text-[11px] font-bold uppercase',
-                        devIdentity === 'admin' ? 'bg-[#ffe600]' : 'bg-white',
+                        'rounded-lg border border-white/20 px-2 py-1 text-[11px] font-bold uppercase',
+                        devIdentity === 'admin' ? 'bg-[var(--tg-theme-button-color,#2AABEE)] text-[var(--tg-theme-button-text-color,#fff)]' : 'bg-[var(--tg-theme-secondary-bg-color,#1c1c1e)]',
                       ].join(' ')}
                       onClick={() => setDevIdentity('admin')}
                       type="button"
@@ -240,14 +240,14 @@ export function AppShell() {
 
         {showInlineOnboarding ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-sm sticker bg-white p-4">
+            <div className="w-full max-w-sm sticker p-4">
               <div className="text-base font-black">Привет! Это Cheessy</div>
               <div className="mt-2 text-sm whitespace-pre-line">
                 {'Турниры — смотри турниры и регистрируйся.\nПрофиль — смотри информацию о себе и свои регистрации.\nМерч — здесь позже можно будет купить мерч клуба.'}
               </div>
               <button
                 type="button"
-                className="mt-4 w-full rounded-xl border border-black/20 bg-[#ffe600] px-4 py-2 text-sm font-bold uppercase"
+                className="mt-4 w-full rounded-xl border border-white/20 bg-[var(--tg-theme-button-color,#2AABEE)] px-4 py-2 text-sm font-bold"
                 onClick={() => setShowInlineOnboarding(false)}
               >
                 Погнали
@@ -258,7 +258,7 @@ export function AppShell() {
 
         {showBottomNav ? (
           <nav className="fixed bottom-0 left-0 right-0">
-            <div className="mx-auto max-w-md border-t border-white/10 bg-[#0f172a] px-3 py-2.5">
+            <div className="mx-auto max-w-md border-t border-white/10 bg-[var(--tg-theme-bg-color,#0f0f0f)] px-3 py-2">
               <div className="flex gap-2">
                 <TabLink to="/tournaments" label="Турниры" />
                 <TabLink to="/profile" label="Профиль" />

@@ -18,6 +18,7 @@ export function AdminNewTournamentScreen() {
   const [format, setFormat] = useState(search.get('format') ?? '')
   const [timeControl, setTimeControl] = useState(search.get('timeControl') ?? '')
   const [importantNote, setImportantNote] = useState(search.get('importantNote') ?? '')
+  const [posterUrl, setPosterUrl] = useState(search.get('posterUrl') ?? '')
   const [startsAt, setStartsAt] = useState(() => new Date(Date.now() + 72 * 3600_000).toISOString().slice(0, 16))
   const [maxPlayers, setMaxPlayers] = useState<number | ''>(Number(search.get('maxPlayers') || 32))
   const [status, setStatus] = useState<'draft' | 'registration_open' | 'registration_closed'>('draft')
@@ -33,9 +34,10 @@ export function AdminNewTournamentScreen() {
       format: format || null,
       timeControl: timeControl || null,
       importantNote: importantNote || null,
+      posterUrl: posterUrl || null,
       status,
     }
-  }, [title, description, locationText, startsAt, maxPlayers, organizerContact, format, timeControl, importantNote, status])
+  }, [title, description, locationText, startsAt, maxPlayers, organizerContact, format, timeControl, importantNote, posterUrl, status])
 
   const create = useMutation({
     mutationFn: async () => {
@@ -142,6 +144,26 @@ export function AdminNewTournamentScreen() {
               onChange={(e) => setImportantNote(e.target.value)}
               rows={2}
             />
+          </label>
+          <label className="block">
+            <div className="text-xs font-black">Афиша турнира (URL)</div>
+            <input
+              type="url"
+              className="mt-1 w-full rounded-xl border-4 border-black px-3 py-2 text-sm"
+              value={posterUrl}
+              onChange={(e) => setPosterUrl(e.target.value)}
+              placeholder="https://..."
+            />
+            {posterUrl ? (
+              <img
+                src={posterUrl}
+                alt="Афиша"
+                className="mt-2 h-40 w-full rounded-xl object-cover"
+                onError={(e) => {
+                  ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                }}
+              />
+            ) : null}
           </label>
 
           <label className="block">

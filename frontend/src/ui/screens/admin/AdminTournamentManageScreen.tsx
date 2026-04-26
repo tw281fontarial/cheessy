@@ -16,6 +16,7 @@ type Tournament = {
   status: string
   maxPlayers: number | null
   organizerContact?: string | null
+  posterUrl?: string | null
 }
 
 type RegistrationRow = {
@@ -152,6 +153,7 @@ export function AdminTournamentManageScreen() {
 
   const [offlineNickname, setOfflineNickname] = useState('@guest')
   const [offlineFullName, setOfflineFullName] = useState('')
+  const [posterUrlDraft, setPosterUrlDraft] = useState('')
   const addOffline = useMutation({
     mutationFn: () =>
       api(`/api/admin/tournaments/${tournamentId}/offline-participant`, {
@@ -174,6 +176,17 @@ export function AdminTournamentManageScreen() {
     },
     onError: (e) => {
       console.error('set game result failed', e)
+    },
+  })
+
+  const updatePoster = useMutation({
+    mutationFn: () =>
+      api(`/api/admin/tournaments/${tournamentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ posterUrl: posterUrlDraft.trim() || null }),
+      }),
+    onSuccess: () => {
+      t.refetch()
     },
   })
 
@@ -212,6 +225,9 @@ export function AdminTournamentManageScreen() {
         {t.isError ? <div className="text-sm text-red-700">Ошибка: {(t.error as Error).message}</div> : null}
         {t.data ? (
           <div className="space-y-2 text-sm">
+            {t.data.tournament.posterUrl ? (
+              <img src={t.data.tournament.posterUrl} alt={t.data.tournament.title} className="h-40 w-full rounded-xl object-cover" />
+            ) : null}
             <div className="text-base font-black">{t.data.tournament.title}</div>
             <div className="opacity-80">{new Date(t.data.tournament.startsAt).toLocaleString()}</div>
             <div className="opacity-80">{t.data.tournament.locationText}</div>
@@ -226,6 +242,27 @@ export function AdminTournamentManageScreen() {
               <Link to={`/admin/tournaments/${tournamentId}/display`} className="inline-block rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-xs font-bold">
                 Экран организатора
               </Link>
+            </div>
+            <div className="pt-3">
+              <div className="text-xs font-bold opacity-80">Афиша турнира (poster_url)</div>
+              <div className="mt-2 flex gap-2">
+                <input
+                  type="url"
+                  className="w-full rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-sm"
+                  value={posterUrlDraft}
+                  onChange={(e) => setPosterUrlDraft(e.target.value)}
+                  placeholder={t.data.tournament.posterUrl ?? 'https://...'}
+                />
+                <button
+                  type="button"
+                  className="rounded-xl border border-white/20 bg-black px-3 py-2 text-xs font-bold"
+                  onClick={() => updatePoster.mutate()}
+                  disabled={updatePoster.isPending}
+                >
+                  Сохранить
+                </button>
+              </div>
+              {updatePoster.isError ? <div className="mt-2 text-xs text-red-700">Ошибка: {(updatePoster.error as Error).message}</div> : null}
             </div>
           </div>
         ) : null}

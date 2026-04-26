@@ -1,11 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #e5e7eb;
-  --paper: #111827;
+  --ink: var(--tg-theme-text-color, #ffffff);
+  --paper: var(--tg-theme-bg-color, #0f0f0f);
+  --card: var(--tg-theme-secondary-bg-color, #1c1c1e);
+  --hint: var(--tg-theme-hint-color, #a1a1a1);
+  --tg-button: var(--tg-theme-button-color, #2aabee);
+  --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
   --lemon: #ffe600;
   --danger: #ff2d2d;
-  --muted: #1f2937;
+  --muted: #1c1c1e;
   --shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
   color-scheme: dark;
 }
@@ -17,22 +21,22 @@ body {
 
 body {
   margin: 0;
-  background: #0b1220;
+  background: var(--paper);
   color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji",
     "Segoe UI Emoji";
 }
 
 .bg-app {
-  background: radial-gradient(1200px 500px at 50% -100px, #1f2937 0%, #0b1220 55%, #070b14 100%);
+  background: var(--paper);
 }
 
 .sticker {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   box-shadow: var(--shadow);
-  background: #111827;
-  color: #e5e7eb;
+  background: var(--card);
+  color: var(--ink);
 }
 
 .sticker-yellow {

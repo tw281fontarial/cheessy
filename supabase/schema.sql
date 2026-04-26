@@ -29,6 +29,7 @@ create table if not exists public.tournaments (
   format text,
   time_control text,
   important_note text,
+  poster_url text,
   created_by uuid references public.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
