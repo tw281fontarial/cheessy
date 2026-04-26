@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../../../lib/api'
-import { getParticipantDisplay, registrationStatusLabel, sourceLabel, statusLabel } from '../../../lib/display'
+import { arrivalStatusLabel, getParticipantDisplay, registrationStatusLabel, sourceLabel, statusLabel } from '../../../lib/display'
 import { StickerCard } from '../../components/StickerCard'
 import { Button } from '../../components/Button'
 import { BackButton } from '../../components/BackButton'
@@ -15,6 +15,7 @@ type Tournament = {
   startsAt: string
   status: string
   maxPlayers: number | null
+  organizerContact?: string | null
 }
 
 type RegistrationRow = {
@@ -22,6 +23,9 @@ type RegistrationRow = {
   status: string
   checkedIn: boolean
   source: string
+  playerName: string | null
+  showTelegramUsername: boolean
+  arrivalStatus: string
   user: {
     id: string
     telegramId: number
@@ -95,6 +99,10 @@ export function AdminTournamentManageScreen() {
     mutationFn: (registrationId: string) => api(`/api/admin/registrations/${registrationId}/uncheck`, { method: 'PATCH', body: JSON.stringify({}) }),
     onSuccess: () => regs.refetch(),
   })
+  const noShow = useMutation({
+    mutationFn: (registrationId: string) => api(`/api/admin/registrations/${registrationId}/no-show`, { method: 'PATCH', body: JSON.stringify({}) }),
+    onSuccess: () => regs.refetch(),
+  })
 
   const notify15 = useMutation({
     mutationFn: () => api(`/api/admin/tournaments/${tournamentId}/notify/15min`, { method: 'POST', body: JSON.stringify({}) }),
@@ -108,6 +116,11 @@ export function AdminTournamentManageScreen() {
       games.refetch()
       standings.refetch()
     },
+  })
+  const startPreview = useQuery({
+    queryKey: ['admin', 'start-preview', tournamentId],
+    enabled: Boolean(tournamentId) && (me.data as any)?.user?.role === 'admin',
+    queryFn: () => api<{ registered: number; checkedIn: number; late: number; notCheckedIn: number }>(`/api/admin/tournaments/${tournamentId}/start-preview`),
   })
 
   const generateNextRound = useMutation({
@@ -202,11 +215,17 @@ export function AdminTournamentManageScreen() {
             <div className="text-base font-black">{t.data.tournament.title}</div>
             <div className="opacity-80">{new Date(t.data.tournament.startsAt).toLocaleString()}</div>
             <div className="opacity-80">{t.data.tournament.locationText}</div>
+            {t.data.tournament.organizerContact ? <div className="opacity-80">Организатор: {t.data.tournament.organizerContact}</div> : null}
             <div className="inline-block rounded-full border border-white/20 px-2 py-1 text-[11px] font-black">
               {statusLabel(t.data.tournament.status)}
             </div>
             <div className="text-xs font-bold opacity-80">
               Количество регистраций: {totalRegs} · Пришли: {checkedInCount}
+            </div>
+            <div className="pt-2">
+              <Link to={`/admin/tournaments/${tournamentId}/display`} className="inline-block rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-xs font-bold">
+                Экран организатора
+              </Link>
             </div>
           </div>
         ) : null}
@@ -232,14 +251,21 @@ export function AdminTournamentManageScreen() {
               <Button
                 variant="black"
                 onClick={() => {
-                  if (!confirm('Начать турнир? Регистрация будет закрыта.')) return
+                  const p = startPreview.data
+                  const msg = p
+                    ? `В турнир попадут:\n- ${p.checkedIn} участников\n- ${p.late} опаздывают\n- ${p.notCheckedIn} не отмечены как пришедшие\n\nНачать турнир?`
+                    : 'Начать турнир? Регистрация будет закрыта.'
+                  if (!confirm(msg)) return
                   startTournament.mutate()
                 }}
                 disabled={startTournament.isPending || checkedInCount === 0}
               >
                 {startTournament.isPending ? 'Стартую…' : 'Начать турнир'}
               </Button>
-              {checkedInCount === 0 ? <div className="mt-2 text-xs opacity-80">Нужен минимум 1 отмеченный “пришёл”.</div> : null}
+              {checkedInCount === 0 ? <div className="mt-2 text-xs opacity-80">Нельзя начать турнир без отмеченных участников.</div> : null}
+              {(startPreview.data?.late ?? 0) > 0 ? (
+                <div className="mt-2 text-xs opacity-80">Есть участники со статусом «Опаздывает». Они не попадут в первый тур, если не отмечены как пришедшие.</div>
+              ) : null}
               {startTournament.isError ? (
                 <div className="mt-2 text-sm text-red-700">Ошибка: {(startTournament.error as Error).message}</div>
               ) : null}
@@ -337,24 +363,33 @@ export function AdminTournamentManageScreen() {
                           <div className="mt-3 grid grid-cols-3 gap-2">
                             <button
                               className="relative z-10 rounded-xl border-4 border-black bg-[#ffe600] px-2 py-2 text-xs font-black"
-                              onClick={() => setResult.mutate({ gameId: g.id, result: '1-0' })}
-                              disabled={setResult.isPending || tournamentStatus !== 'running' || g.result !== null}
+                              onClick={() => {
+                                if (g.result !== null && !confirm('Изменить результат? Таблица очков пересчитается.')) return
+                                setResult.mutate({ gameId: g.id, result: '1-0' })
+                              }}
+                              disabled={setResult.isPending || tournamentStatus !== 'running'}
                               type="button"
                             >
                               1-0
                             </button>
                             <button
                               className="relative z-10 rounded-xl border-4 border-black bg-white px-2 py-2 text-xs font-black"
-                              onClick={() => setResult.mutate({ gameId: g.id, result: '0.5-0.5' })}
-                              disabled={setResult.isPending || tournamentStatus !== 'running' || g.result !== null}
+                              onClick={() => {
+                                if (g.result !== null && !confirm('Изменить результат? Таблица очков пересчитается.')) return
+                                setResult.mutate({ gameId: g.id, result: '0.5-0.5' })
+                              }}
+                              disabled={setResult.isPending || tournamentStatus !== 'running'}
                               type="button"
                             >
                               ½-½
                             </button>
                             <button
                               className="relative z-10 rounded-xl border-4 border-black bg-[#ff2d2d] px-2 py-2 text-xs font-black text-white"
-                              onClick={() => setResult.mutate({ gameId: g.id, result: '0-1' })}
-                              disabled={setResult.isPending || tournamentStatus !== 'running' || g.result !== null}
+                              onClick={() => {
+                                if (g.result !== null && !confirm('Изменить результат? Таблица очков пересчитается.')) return
+                                setResult.mutate({ gameId: g.id, result: '0-1' })
+                              }}
+                              disabled={setResult.isPending || tournamentStatus !== 'running'}
                               type="button"
                             >
                               0-1
@@ -473,6 +508,7 @@ export function AdminTournamentManageScreen() {
             {regs.data.registrations.length === 0 ? <div className="text-sm opacity-80">Пока пусто.</div> : null}
             {regs.data.registrations.map((r) => {
               const disp = getParticipantDisplay({
+                playerName: r.playerName,
                 username: r.user.username,
                 firstName: r.user.firstName,
                 lastName: r.user.lastName,
@@ -483,9 +519,11 @@ export function AdminTournamentManageScreen() {
                     <div>
                       <div className="text-sm font-black">{disp.primary}</div>
                       {disp.secondary ? <div className="text-xs opacity-70">{disp.secondary}</div> : null}
+                      {r.user.username ? <div className="text-xs opacity-70">@{r.user.username}</div> : null}
                       <div className="text-xs opacity-70">
                         {registrationStatusLabel(r.status)} · {sourceLabel(r.source)}
                       </div>
+                      {r.arrivalStatus === 'late' ? <div className="text-xs text-yellow-300">{arrivalStatusLabel(r.arrivalStatus)}</div> : null}
                     </div>
                     <div
                       className={[
@@ -500,16 +538,24 @@ export function AdminTournamentManageScreen() {
                     <Button
                       variant="yellow"
                       onClick={() => checkIn.mutate(r.id)}
-                      disabled={checkIn.isPending || r.checkedIn || tournamentStatus === 'finished'}
+                      disabled={checkIn.isPending || r.checkedIn || tournamentStatus === 'finished' || r.status !== 'registered'}
                     >
                       Пришёл
                     </Button>
                     <Button
                       variant="danger"
                       onClick={() => uncheck.mutate(r.id)}
-                      disabled={uncheck.isPending || !r.checkedIn || tournamentStatus === 'finished'}
+                      disabled={uncheck.isPending || !r.checkedIn || tournamentStatus === 'finished' || r.status !== 'registered'}
                     >
                       Снять
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={() => noShow.mutate(r.id)}
+                      disabled={noShow.isPending || tournamentStatus === 'finished' || r.status !== 'registered'}
+                      className="col-span-2"
+                    >
+                      Не пришёл
                     </Button>
                   </div>
                 </div>

@@ -21,6 +21,7 @@ type Me = {
     startsAt: string
     status: string
     checkedIn: boolean
+    tournamentStatus?: string
   }>
 }
 
@@ -96,7 +97,6 @@ export function ProfileScreen() {
             <div className="inline-block rounded-full border border-white/15 bg-[#0f172a] px-2 py-1 text-[11px] font-bold uppercase text-white">
               role: {me.data.user.role}
             </div>
-            <div className="text-xs opacity-70">telegram id: {me.data.user.telegramId}</div>
             {me.data.user.role === 'admin' ? (
               <div className="pt-2">
                 <a className="font-black underline" href="/admin">
@@ -108,21 +108,36 @@ export function ProfileScreen() {
         ) : null}
       </StickerCard>
 
-      <StickerCard title="Мои регистрации">
+      <StickerCard title="Мои турниры">
         {me.data ? (
           <div className="space-y-2">
             {me.data.registrations.length === 0 ? (
               <div className="text-sm opacity-80">Нет активных регистраций.</div>
             ) : (
-              me.data.registrations.map((r) => (
-                <div key={r.tournamentId} className="rounded-2xl border border-white/15 bg-[#0f172a] p-3 text-white">
-                  <div className="text-sm font-black">{r.tournamentTitle}</div>
-                  <div className="text-xs opacity-80">{new Date(r.startsAt).toLocaleString()}</div>
-                  <div className="mt-2 text-xs font-bold">
-                    {registrationStatusLabel(r.status)} {r.checkedIn ? '· Пришёл' : ''}
-                  </div>
-                </div>
-              ))
+              <>
+                <div className="text-xs font-bold opacity-70">Предстоящие / текущие</div>
+                {me.data.registrations
+                  .filter((r) => r.tournamentStatus !== 'finished')
+                  .map((r) => (
+                    <div key={r.tournamentId} className="rounded-2xl border border-white/15 bg-[#0f172a] p-3 text-white">
+                      <div className="text-sm font-black">{r.tournamentTitle}</div>
+                      <div className="text-xs opacity-80">{new Date(r.startsAt).toLocaleString()}</div>
+                      <div className="mt-2 text-xs font-bold">
+                        {registrationStatusLabel(r.status)} {r.checkedIn ? '· Пришёл' : ''}
+                      </div>
+                    </div>
+                  ))}
+                <div className="pt-2 text-xs font-bold opacity-70">Завершённые</div>
+                {me.data.registrations
+                  .filter((r) => r.tournamentStatus === 'finished')
+                  .map((r) => (
+                    <div key={r.tournamentId} className="rounded-2xl border border-white/15 bg-[#0f172a] p-3 text-white">
+                      <div className="text-sm font-black">{r.tournamentTitle}</div>
+                      <div className="text-xs opacity-80">{new Date(r.startsAt).toLocaleString()}</div>
+                      <div className="mt-2 text-xs font-bold">{registrationStatusLabel(r.status)}</div>
+                    </div>
+                  ))}
+              </>
             )}
           </div>
         ) : (

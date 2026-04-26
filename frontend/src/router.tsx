@@ -7,6 +7,7 @@ import { MerchScreen } from './ui/screens/MerchScreen'
 import { AdminScreen } from './ui/screens/admin/AdminScreen'
 import { AdminNewTournamentScreen } from './ui/screens/admin/AdminNewTournamentScreen'
 import { AdminTournamentManageScreen } from './ui/screens/admin/AdminTournamentManageScreen'
+import { AdminTournamentDisplayScreen } from './ui/screens/admin/AdminTournamentDisplayScreen'
 
 export const router = createBrowserRouter([
   {
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
       { path: '/admin', element: <AdminScreen /> },
       { path: '/admin/tournaments/new', element: <AdminNewTournamentScreen /> },
       { path: '/admin/tournaments/:id', element: <AdminTournamentManageScreen /> },
+      { path: '/admin/tournaments/:id/display', element: <AdminTournamentDisplayScreen /> },
     ],
   },
 ])

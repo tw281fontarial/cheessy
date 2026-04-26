@@ -9,6 +9,13 @@ type AdminTournamentListItem = {
   id: string
   title: string
   startsAt: string
+  locationText: string
+  maxPlayers: number | null
+  organizerContact?: string | null
+  format?: string | null
+  timeControl?: string | null
+  importantNote?: string | null
+  description?: string | null
   status: string
   registrationsCount: number
 }
@@ -74,6 +81,12 @@ export function AdminScreen() {
                     className="inline-block rounded-xl border border-white/20 bg-black px-4 py-2 text-xs font-bold uppercase text-white"
                   >
                     Управлять
+                  </Link>
+                  <Link
+                    to={`/admin/tournaments/new?title=${encodeURIComponent(`${t.title} копия`)}&description=${encodeURIComponent(t.description ?? '')}&locationText=${encodeURIComponent(t.locationText ?? '')}&organizerContact=${encodeURIComponent(t.organizerContact ?? '')}&maxPlayers=${encodeURIComponent(String(t.maxPlayers ?? ''))}&format=${encodeURIComponent(t.format ?? '')}&timeControl=${encodeURIComponent(t.timeControl ?? '')}&importantNote=${encodeURIComponent(t.importantNote ?? '')}`}
+                    className="ml-2 inline-block rounded-xl border border-white/20 bg-[#1f2937] px-4 py-2 text-xs font-bold uppercase text-white"
+                  >
+                    Создать копию
                   </Link>
                 </div>
               </div>

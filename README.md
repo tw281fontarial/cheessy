@@ -76,3 +76,28 @@ where title ilike '%TEST%';
 
 Важно: у `tournaments` включён `on delete cascade`, поэтому будут удалены связанные `registrations`, `rounds` и `games`.
 
+## Миграции 0.3 (Supabase SQL)
+
+```sql
+alter table public.registrations add column if not exists player_name text;
+alter table public.registrations add column if not exists show_telegram_username boolean not null default false;
+alter table public.registrations add column if not exists arrival_status text not null default 'normal';
+alter table public.registrations drop constraint if exists registrations_status_check;
+alter table public.registrations add constraint registrations_status_check check (status in ('registered','cancelled','no_show'));
+
+alter table public.tournaments add column if not exists organizer_contact text;
+alter table public.tournaments add column if not exists format text;
+alter table public.tournaments add column if not exists time_control text;
+alter table public.tournaments add column if not exists important_note text;
+```
+
+## Чеклист тестирования 0.3
+
+- Регистрация с обязательным `player_name`
+- Приватность username (чекбокс) в публичном списке участников
+- Кнопки `Я опаздываю` и `Отменить регистрацию`
+- Админ видит `Опаздывает`, `Отменил`, `Не пришёл`
+- Публичная live-таблица `GET /api/tournaments/:id/standings` с символами `+ - = B •`
+- Экран организатора `/admin/tournaments/:id/display`
+- Копирование итоговой таблицы после завершения турнира
+

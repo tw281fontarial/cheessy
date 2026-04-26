@@ -24,6 +24,10 @@ create table if not exists public.tournaments (
   starts_at timestamptz not null,
   status text not null default 'draft' check (status in ('draft','registration_open','registration_closed','running','finished')),
   max_players integer,
+  organizer_contact text,
+  format text,
+  time_control text,
+  important_note text,
   created_by uuid references public.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -34,8 +38,11 @@ create table if not exists public.registrations (
   tournament_id uuid not null references public.tournaments(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   source text not null default 'telegram' check (source in ('telegram','offline_admin')),
-  status text not null default 'registered' check (status in ('registered','cancelled')),
+  status text not null default 'registered' check (status in ('registered','cancelled','no_show')),
   checked_in boolean not null default false,
+  player_name text,
+  show_telegram_username boolean not null default false,
+  arrival_status text not null default 'normal' check (arrival_status in ('normal','late')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (tournament_id, user_id)
