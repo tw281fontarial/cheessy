@@ -234,7 +234,10 @@ export function AppShell() {
 
         </header>
 
-        <main className={['px-4 pb-28', showBottomNav ? 'pt-3' : 'pt-3 pb-6'].join(' ')}>
+        <main
+          className={['px-4', showBottomNav ? 'pt-3' : 'pt-3 pb-6'].join(' ')}
+          style={showBottomNav ? { paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)' } : undefined}
+        >
           <Outlet />
         </main>
 
@@ -257,8 +260,11 @@ export function AppShell() {
         ) : null}
 
         {showBottomNav ? (
-          <nav className="fixed bottom-0 left-0 right-0">
-            <div className="mx-auto max-w-md border-t border-white/10 bg-[var(--tg-theme-bg-color,#0f0f0f)] px-3 py-2">
+          <nav
+            className="fixed left-0 right-0"
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
+          >
+            <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-[var(--tg-theme-bg-color,#0f0f0f)] px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
               <div className="flex gap-2">
                 <TabLink to="/tournaments" label="Турниры" />
                 <TabLink to="/profile" label="Профиль" />

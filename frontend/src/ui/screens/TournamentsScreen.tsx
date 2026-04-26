@@ -68,7 +68,8 @@ export function TournamentsScreen() {
                     <div className="space-y-1 p-2.5">
                       <div className="line-clamp-2 text-xs font-bold">{t.title}</div>
                       <div className="text-[11px] opacity-80">{new Date(t.startsAt).toLocaleDateString()}</div>
-                      <div className="text-[11px] opacity-70">{t.format || t.locationText || 'Офлайн турнир'}</div>
+                      {t.locationText ? <div className="line-clamp-2 text-[11px] opacity-70">{t.locationText}</div> : null}
+                      {!t.locationText && t.format ? <div className="line-clamp-2 text-[11px] opacity-70">{t.format}</div> : null}
                       <div className="inline-block rounded-full border border-white/20 px-2 py-1 text-[10px] font-bold">
                         {statusLabel(t.status)}
                       </div>
@@ -89,6 +90,7 @@ export function TournamentsScreen() {
                     >
                       <div className="text-sm font-bold">{t.title}</div>
                       <div className="text-xs opacity-70">{new Date(t.startsAt).toLocaleString()}</div>
+                      {t.locationText ? <div className="mt-1 text-xs opacity-70">{t.locationText}</div> : null}
                     </Link>
                   ))}
                 </div>

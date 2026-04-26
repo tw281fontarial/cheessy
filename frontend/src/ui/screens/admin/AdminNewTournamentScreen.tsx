@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../../../lib/api'
+import { uploadTournamentPoster } from '../../../lib/uploadTournamentPoster'
 import { StickerCard } from '../../components/StickerCard'
 import { Button } from '../../components/Button'
 import { BackButton } from '../../components/BackButton'
@@ -19,6 +20,7 @@ export function AdminNewTournamentScreen() {
   const [timeControl, setTimeControl] = useState(search.get('timeControl') ?? '')
   const [importantNote, setImportantNote] = useState(search.get('importantNote') ?? '')
   const [posterUrl, setPosterUrl] = useState(search.get('posterUrl') ?? '')
+  const [posterUploadError, setPosterUploadError] = useState<string | null>(null)
   const [startsAt, setStartsAt] = useState(() => new Date(Date.now() + 72 * 3600_000).toISOString().slice(0, 16))
   const [maxPlayers, setMaxPlayers] = useState<number | ''>(Number(search.get('maxPlayers') || 32))
   const [status, setStatus] = useState<'draft' | 'registration_open' | 'registration_closed'>('draft')
@@ -51,6 +53,16 @@ export function AdminNewTournamentScreen() {
       alert('Турнир создан')
       nav(`/admin/tournaments/${r.id}`)
     },
+  })
+
+  const uploadPoster = useMutation({
+    mutationFn: async (file: File) => {
+      setPosterUploadError(null)
+      const { publicUrl } = await uploadTournamentPoster(file, null)
+      return publicUrl
+    },
+    onSuccess: (url) => setPosterUrl(url),
+    onError: (e) => setPosterUploadError((e as Error).message),
   })
 
   if (me.isLoading) return <div className="text-sm">Загружаю…</div>
@@ -154,6 +166,25 @@ export function AdminNewTournamentScreen() {
               onChange={(e) => setPosterUrl(e.target.value)}
               placeholder="https://..."
             />
+            <div className="mt-2 flex items-start gap-2">
+              <label className="shrink-0 inline-block rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-xs font-bold text-white">
+                {uploadPoster.isPending ? 'Загрузка…' : 'Загрузить афишу'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadPoster.isPending}
+                  onChange={(e) => {
+                    const f = e.currentTarget.files?.[0]
+                    e.currentTarget.value = ''
+                    if (!f) return
+                    uploadPoster.mutate(f)
+                  }}
+                />
+              </label>
+              <div className="text-xs opacity-70">Можно вставить ссылку вручную или загрузить изображение из галереи.</div>
+            </div>
+            {posterUploadError ? <div className="mt-2 text-xs text-red-700">{posterUploadError}</div> : null}
             {posterUrl ? (
               <img
                 src={posterUrl}

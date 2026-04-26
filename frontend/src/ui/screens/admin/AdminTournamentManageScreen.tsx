@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../../../lib/api'
 import { arrivalStatusLabel, getParticipantDisplay, registrationStatusLabel, sourceLabel, statusLabel } from '../../../lib/display'
+import { uploadTournamentPoster } from '../../../lib/uploadTournamentPoster'
 import { StickerCard } from '../../components/StickerCard'
 import { Button } from '../../components/Button'
 import { BackButton } from '../../components/BackButton'
@@ -154,6 +155,7 @@ export function AdminTournamentManageScreen() {
   const [offlineNickname, setOfflineNickname] = useState('@guest')
   const [offlineFullName, setOfflineFullName] = useState('')
   const [posterUrlDraft, setPosterUrlDraft] = useState('')
+  const [posterUploadError, setPosterUploadError] = useState<string | null>(null)
   const addOffline = useMutation({
     mutationFn: () =>
       api(`/api/admin/tournaments/${tournamentId}/offline-participant`, {
@@ -187,6 +189,20 @@ export function AdminTournamentManageScreen() {
       }),
     onSuccess: () => {
       t.refetch()
+    },
+  })
+
+  const uploadPoster = useMutation({
+    mutationFn: async (file: File) => {
+      setPosterUploadError(null)
+      const { publicUrl } = await uploadTournamentPoster(file, tournamentId)
+      return publicUrl
+    },
+    onSuccess: (url) => {
+      setPosterUrlDraft(url)
+    },
+    onError: (e) => {
+      setPosterUploadError((e as Error).message)
     },
   })
 
@@ -262,6 +278,25 @@ export function AdminTournamentManageScreen() {
                   Сохранить
                 </button>
               </div>
+              <div className="mt-2 flex items-start gap-2">
+                <label className="shrink-0 inline-block rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-xs font-bold text-white">
+                  {uploadPoster.isPending ? 'Загрузка…' : 'Загрузить новую афишу'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadPoster.isPending}
+                    onChange={(e) => {
+                      const f = e.currentTarget.files?.[0]
+                      e.currentTarget.value = ''
+                      if (!f) return
+                      uploadPoster.mutate(f)
+                    }}
+                  />
+                </label>
+                <div className="text-xs opacity-70">Можно вставить ссылку вручную или загрузить изображение из галереи.</div>
+              </div>
+              {posterUploadError ? <div className="mt-2 text-xs text-red-700">{posterUploadError}</div> : null}
               {updatePoster.isError ? <div className="mt-2 text-xs text-red-700">Ошибка: {(updatePoster.error as Error).message}</div> : null}
             </div>
           </div>
