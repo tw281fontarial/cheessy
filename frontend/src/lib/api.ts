@@ -2,6 +2,10 @@ import { env } from './env'
 
 const TOKEN_KEY = 'cheessy_auth_token'
 
+type ApiErrorBody = {
+  error?: unknown
+}
+
 export function setAuthToken(token: string | null) {
   if (!token) localStorage.removeItem(TOKEN_KEY)
   else localStorage.setItem(TOKEN_KEY, token)
@@ -47,7 +51,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     let responseText = ''
     try {
       if (isJson) {
-        const body = (await res.json()) as any
+        const body = (await res.json()) as ApiErrorBody
         responseText = JSON.stringify(body)
         if (typeof body?.error === 'string') message = body.error
         else message = JSON.stringify(body)
@@ -62,7 +66,6 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message)
   }
 
-  if (!isJson) return (await res.text()) as any as T
+  if (!isJson) return (await res.text()) as T
   return (await res.json()) as T
 }
-

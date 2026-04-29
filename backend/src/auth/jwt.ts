@@ -3,7 +3,7 @@ import type { Env } from '../env'
 
 export type JwtPayload = {
   sub: string
-  role: 'user' | 'admin'
+  role?: 'user' | 'admin'
 }
 
 export function signUserJwt(env: Env, payload: JwtPayload): string {
@@ -19,4 +19,3 @@ export function verifyUserJwt(env: Env, token: string): JwtPayload | null {
     return null
   }
 }
-

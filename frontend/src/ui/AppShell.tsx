@@ -5,6 +5,18 @@ import { api, setAuthToken } from '../lib/api'
 import { canUseDevPanelForUser, isDevMode, isInsideTelegramWebApp } from '../lib/devMode'
 import { getTelegramWebApp, waitForTelegramWebApp } from '../lib/telegram'
 
+type MeResponse = {
+  user: {
+    telegramId: number
+    username: string | null
+    role: 'user' | 'admin'
+  }
+}
+
+type AuthResponse = {
+  token?: string
+}
+
 function TabLink(props: { to: string; label: string }) {
   return (
     <NavLink
@@ -40,7 +52,7 @@ export function AppShell() {
 
   const me = useQuery({
     queryKey: ['me'],
-    queryFn: () => api('/api/me'),
+    queryFn: () => api<MeResponse>('/api/me'),
     retry: false,
     enabled: true,
   })
@@ -58,8 +70,8 @@ export function AppShell() {
     mutationFn: async () => {
       const wa = getTelegramWebApp()
       const initData = wa?.initData ?? ''
-      const tgUser = wa?.initDataUnsafe && (wa.initDataUnsafe as any).user
-      const data = await api<any>('/api/auth/telegram', {
+      const tgUser = wa?.initDataUnsafe?.user
+      const data = await api<AuthResponse>('/api/auth/telegram', {
         method: 'POST',
         body: JSON.stringify({
           initData,
@@ -109,7 +121,7 @@ export function AppShell() {
     if (devLogin.isPending || devLogin.isSuccess) return
     // If /api/me failed, silently dev-login for local browser testing
     if (me.isError) devLogin.mutate()
-  }, [devMode, me.isError, me.isSuccess, devLogin.isPending, devLogin.isSuccess])
+  }, [devMode, me.isError, me.isSuccess, devLogin])
 
   useEffect(() => {
     if (devMode) return
@@ -124,7 +136,7 @@ export function AppShell() {
       if (!wa || !isInsideTelegramWebApp()) return
 
       const initData = wa.initData ?? ''
-      const unsafeUser = wa.initDataUnsafe && (wa.initDataUnsafe as any).user
+      const unsafeUser = wa.initDataUnsafe?.user
       if (!initData) {
         localStorage.setItem('cheessy_auth_request_status', 'error')
         localStorage.setItem('cheessy_auth_error', 'Missing Telegram initData')
@@ -144,7 +156,7 @@ export function AppShell() {
     return () => {
       cancelled = true
     }
-  }, [devMode, me.isSuccess, telegramLogin.isPending, telegramLogin.isSuccess, telegramSdkResolved])
+  }, [devMode, me.isSuccess, telegramLogin, telegramSdkResolved])
 
   useEffect(() => {
     if (!devMode) return
@@ -155,15 +167,15 @@ export function AppShell() {
   }, [devIdentity])
 
   const showBottomNav = !location.pathname.startsWith('/admin')
-  const currentUsername = ((me.data as any)?.user?.username as string | null | undefined) ?? null
+  const currentUsername = me.data?.user?.username ?? null
   const canShowDevPanel = canUseDevPanelForUser(currentUsername)
 
   useEffect(() => {
     if (!isInsideTelegramWebApp()) return
     if (!me.data) return
 
-    const telegramId = (me.data as any)?.user?.telegramId
-    const key = `cheessy_onboarding_seen_${telegramId ?? 'guest'}`
+    const telegramId = me.data.user.telegramId
+    const key = `cheessy_onboarding_seen_${telegramId}`
     if (localStorage.getItem(key) === '1') return
 
     const wa = getTelegramWebApp()
@@ -189,7 +201,8 @@ export function AppShell() {
       return
     }
 
-    setShowInlineOnboarding(true)
+    const timer = window.setTimeout(() => setShowInlineOnboarding(true), 0)
+    return () => window.clearTimeout(timer)
   }, [me.data])
 
   return (
@@ -277,4 +290,3 @@ export function AppShell() {
     </div>
   )
 }
-

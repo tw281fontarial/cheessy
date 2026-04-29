@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import { isDevMode, isInsideTelegramWebApp } from '../../lib/devMode'
@@ -30,7 +30,10 @@ type ProfileSummary = {
     tournamentId: string
     tournamentTitle: string
     roundNumber: number
-    tableNumber: number
+    tableNumber: number | null
+    pairNumber: number
+    status: 'waiting' | 'playing' | 'completed'
+    waitingForTable: boolean
     opponent: string | null
     color: 'white' | 'black' | null
     result: '1-0' | '0-1' | '0.5-0.5' | 'bye' | null
@@ -65,11 +68,8 @@ export function ProfileScreen() {
     queryFn: () => api<ProfileSummary>('/api/me/profile-summary'),
     retry: false,
   })
-  const [nicknameDraft, setNicknameDraft] = useState('')
-  useEffect(() => {
-    if (!profile.data) return
-    setNicknameDraft(profile.data.user.defaultPlayerName ?? '')
-  }, [profile.data?.user.defaultPlayerName])
+  const [nicknameDraft, setNicknameDraft] = useState<string | null>(null)
+  const visibleNicknameDraft = nicknameDraft ?? profile.data?.user.defaultPlayerName ?? ''
 
   const saveDefaultNickname = useMutation({
     mutationFn: (value: string) =>
@@ -192,7 +192,7 @@ export function ProfileScreen() {
                   ) : (
                     <div className="mt-2 space-y-1 text-sm">
                       <div>Тур №{g.roundNumber}</div>
-                      <div>Стол №{g.tableNumber}</div>
+                      <div>{g.waitingForTable ? `Пара №${g.pairNumber}: ждёшь свободный стол` : `Стол №${g.tableNumber}`}</div>
                       <div>Соперник: {g.opponent ?? '—'}</div>
                       <div>Цвет: {g.color === 'white' ? 'белые' : 'чёрные'}</div>
                       <div>Результат: {resultLabel(g.result)}</div>
@@ -281,14 +281,14 @@ export function ProfileScreen() {
           <div className="space-y-3">
             <input
               className="w-full rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-sm"
-              value={nicknameDraft}
+              value={visibleNicknameDraft}
               onChange={(e) => setNicknameDraft(e.target.value)}
               placeholder="Например: Тед Лассо"
             />
             <Button
               variant="yellow"
               disabled={saveDefaultNickname.isPending}
-              onClick={() => saveDefaultNickname.mutate(nicknameDraft)}
+              onClick={() => saveDefaultNickname.mutate(visibleNicknameDraft)}
             >
               Сохранить
             </Button>
@@ -304,4 +304,3 @@ export function ProfileScreen() {
     </div>
   )
 }
-

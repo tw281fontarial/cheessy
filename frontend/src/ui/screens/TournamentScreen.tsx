@@ -15,6 +15,7 @@ type Tournament = {
   locationText: string
   status: string
   maxPlayers: number | null
+  tablesCount: number | null
   registrationsCount: number
   organizerContact: string | null
   format: string | null
@@ -96,7 +97,7 @@ export function TournamentScreen() {
     queryKey: ['my-current-game', tournamentId],
     enabled: Boolean(tournamentId),
     queryFn: () =>
-      api<{ game: null | { roundNumber: number; tableNumber: number; color: 'white' | 'black' | null; opponent: { username: string | null; displayName: string } | null; result: string | null; isBye: boolean } }>(
+      api<{ game: null | { roundNumber: number; tableNumber: number | null; pairNumber: number; status: 'waiting' | 'playing' | 'completed'; waitingForTable: boolean; color: 'white' | 'black' | null; opponent: { username: string | null; displayName: string } | null; result: string | null; isBye: boolean } }>(
         `/api/tournaments/${tournamentId}/my-current-game`,
       ),
     retry: false,
@@ -139,6 +140,7 @@ export function TournamentScreen() {
               {q.data.tournament.description ? <div className="opacity-90">{q.data.tournament.description}</div> : null}
               {q.data.tournament.importantNote ? <div className="rounded-xl border border-white/15 bg-[#0f172a] p-2">Важно: {q.data.tournament.importantNote}</div> : null}
               <div><span className="opacity-70">Лимит участников:</span> {q.data.tournament.maxPlayers ?? 'без лимита'}</div>
+              <div><span className="opacity-70">Столов в заведении:</span> {q.data.tournament.tablesCount ?? 'без ограничения'}</div>
               <div><span className="opacity-70">Зарегистрировано:</span> {q.data.tournament.registrationsCount}</div>
               {q.data.tournament.organizerContact ? <div className="text-xs opacity-80">По вопросам регистрации, опозданий и места проведения — писать организатору.</div> : null}
             </div>
@@ -154,7 +156,11 @@ export function TournamentScreen() {
               ) : (
                 <div className="space-y-2 text-sm">
                   <div>Тур №{myGame.data.game.roundNumber}</div>
-                  <div>Стол №{myGame.data.game.tableNumber}</div>
+                  <div>
+                    {myGame.data.game.waitingForTable
+                      ? `Пара №${myGame.data.game.pairNumber}: ждёшь свободный стол`
+                      : `Стол №${myGame.data.game.tableNumber}`}
+                  </div>
                   <div>
                     Соперник:{' '}
                     {myGame.data.game.opponent ? myGame.data.game.opponent.displayName : '—'}
@@ -273,4 +279,3 @@ export function TournamentScreen() {
     </div>
   )
 }
-

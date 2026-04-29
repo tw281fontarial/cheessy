@@ -11,6 +11,7 @@ type AdminTournamentListItem = {
   startsAt: string
   locationText: string
   maxPlayers: number | null
+  tablesCount: number | null
   organizerContact?: string | null
   format?: string | null
   timeControl?: string | null
@@ -21,18 +22,24 @@ type AdminTournamentListItem = {
   posterUrl?: string | null
 }
 
+type MeResponse = {
+  user: {
+    role: 'user' | 'admin'
+  }
+}
+
 export function AdminScreen() {
-  const me = useQuery({ queryKey: ['me'], queryFn: () => api<any>('/api/me'), retry: false })
+  const me = useQuery({ queryKey: ['me'], queryFn: () => api<MeResponse>('/api/me'), retry: false })
 
   const tournaments = useQuery({
     queryKey: ['admin', 'tournaments'],
     queryFn: () => api<{ tournaments: AdminTournamentListItem[] }>('/api/admin/tournaments'),
-    enabled: (me.data as any)?.user?.role === 'admin',
+    enabled: me.data?.user?.role === 'admin',
   })
 
   if (me.isLoading) return <div className="text-sm">Загружаю…</div>
   if (me.isError) return <div className="text-sm text-red-700">Ошибка: {(me.error as Error).message}</div>
-  if ((me.data as any)?.user?.role !== 'admin') {
+  if (me.data?.user?.role !== 'admin') {
     return (
       <StickerCard title="Админка">
         <div className="text-sm text-red-700 font-bold">Forbidden</div>
@@ -74,7 +81,9 @@ export function AdminScreen() {
                     <div className="inline-block rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold">
                       {statusLabel(t.status)}
                     </div>
-                    <div className="mt-2 text-xs font-bold opacity-80">{t.registrationsCount} регистраций</div>
+                    <div className="mt-2 text-xs font-bold opacity-80">
+                      {t.registrationsCount} регистраций · {t.tablesCount ?? '∞'} столов
+                    </div>
                   </div>
                 </div>
                 <div className="mt-3">
@@ -85,7 +94,7 @@ export function AdminScreen() {
                     Управлять
                   </Link>
                   <Link
-                    to={`/admin/tournaments/new?title=${encodeURIComponent(`${t.title} копия`)}&description=${encodeURIComponent(t.description ?? '')}&locationText=${encodeURIComponent(t.locationText ?? '')}&organizerContact=${encodeURIComponent(t.organizerContact ?? '')}&maxPlayers=${encodeURIComponent(String(t.maxPlayers ?? ''))}&format=${encodeURIComponent(t.format ?? '')}&timeControl=${encodeURIComponent(t.timeControl ?? '')}&importantNote=${encodeURIComponent(t.importantNote ?? '')}&posterUrl=${encodeURIComponent(t.posterUrl ?? '')}`}
+                    to={`/admin/tournaments/new?title=${encodeURIComponent(`${t.title} копия`)}&description=${encodeURIComponent(t.description ?? '')}&locationText=${encodeURIComponent(t.locationText ?? '')}&organizerContact=${encodeURIComponent(t.organizerContact ?? '')}&maxPlayers=${encodeURIComponent(String(t.maxPlayers ?? ''))}&tablesCount=${encodeURIComponent(String(t.tablesCount ?? ''))}&format=${encodeURIComponent(t.format ?? '')}&timeControl=${encodeURIComponent(t.timeControl ?? '')}&importantNote=${encodeURIComponent(t.importantNote ?? '')}&posterUrl=${encodeURIComponent(t.posterUrl ?? '')}`}
                     className="ml-2 inline-block rounded-xl border border-white/20 bg-[#1f2937] px-4 py-2 text-xs font-bold uppercase text-white"
                   >
                     Создать копию

@@ -1,6 +1,18 @@
+type TelegramUnsafeUser = {
+  id?: number
+  username?: string
+  first_name?: string
+  last_name?: string
+  photo_url?: string
+}
+
 type TelegramWebApp = {
   initData?: string
-  initDataUnsafe?: unknown
+  initDataUnsafe?: {
+    user?: TelegramUnsafeUser
+  }
+  platform?: string
+  version?: string
   ready?: () => void
   expand?: () => void
   showAlert?: (message: string, callback?: () => void) => void
@@ -47,7 +59,7 @@ export function getTelegramDebugInfo() {
   const wa = getTelegramWebApp()
   const hasWebApp = Boolean(wa)
   const initData = wa?.initData ?? ''
-  const unsafeUser = wa?.initDataUnsafe && (wa.initDataUnsafe as any).user
+  const unsafeUser = wa?.initDataUnsafe?.user
   const userAgent = window.navigator.userAgent
   const currentUrl = window.location.href
   const telegramScriptLoaded = Boolean(document.querySelector('script[src="https://telegram.org/js/telegram-web-app.js"]'))
@@ -63,8 +75,7 @@ export function getTelegramDebugInfo() {
     userAgent,
     currentUrl,
     isLikelyTelegramWebView: isLikelyTelegramWebView(userAgent),
-    platform: (wa as any)?.platform ?? null,
-    version: (wa as any)?.version ?? null,
+    platform: wa?.platform ?? null,
+    version: wa?.version ?? null,
   }
 }
-

@@ -7,10 +7,18 @@ import { StickerCard } from '../../components/StickerCard'
 import { Button } from '../../components/Button'
 import { BackButton } from '../../components/BackButton'
 
+type MeResponse = {
+  user: {
+    role: 'user' | 'admin'
+  }
+}
+
+type TournamentStatus = 'draft' | 'registration_open' | 'registration_closed'
+
 export function AdminNewTournamentScreen() {
   const nav = useNavigate()
   const [search] = useSearchParams()
-  const me = useQuery({ queryKey: ['me'], queryFn: () => api<any>('/api/me'), retry: false })
+  const me = useQuery({ queryKey: ['me'], queryFn: () => api<MeResponse>('/api/me'), retry: false })
 
   const [title, setTitle] = useState(search.get('title') ?? '')
   const [description, setDescription] = useState(search.get('description') ?? '')
@@ -23,7 +31,8 @@ export function AdminNewTournamentScreen() {
   const [posterUploadError, setPosterUploadError] = useState<string | null>(null)
   const [startsAt, setStartsAt] = useState(() => new Date(Date.now() + 72 * 3600_000).toISOString().slice(0, 16))
   const [maxPlayers, setMaxPlayers] = useState<number | ''>(Number(search.get('maxPlayers') || 32))
-  const [status, setStatus] = useState<'draft' | 'registration_open' | 'registration_closed'>('draft')
+  const [tablesCount, setTablesCount] = useState<number | ''>(Number(search.get('tablesCount') || 4))
+  const [status, setStatus] = useState<TournamentStatus>('draft')
 
   const body = useMemo(() => {
     return {
@@ -32,6 +41,7 @@ export function AdminNewTournamentScreen() {
       locationText,
       startsAt: new Date(startsAt).toISOString(),
       maxPlayers: maxPlayers === '' ? null : Number(maxPlayers),
+      tablesCount: tablesCount === '' ? null : Number(tablesCount),
       organizerContact: organizerContact || null,
       format: format || null,
       timeControl: timeControl || null,
@@ -39,7 +49,7 @@ export function AdminNewTournamentScreen() {
       posterUrl: posterUrl || null,
       status,
     }
-  }, [title, description, locationText, startsAt, maxPlayers, organizerContact, format, timeControl, importantNote, posterUrl, status])
+  }, [title, description, locationText, startsAt, maxPlayers, tablesCount, organizerContact, format, timeControl, importantNote, posterUrl, status])
 
   const create = useMutation({
     mutationFn: async () => {
@@ -67,7 +77,7 @@ export function AdminNewTournamentScreen() {
 
   if (me.isLoading) return <div className="text-sm">Загружаю…</div>
   if (me.isError) return <div className="text-sm text-red-700">Ошибка: {(me.error as Error).message}</div>
-  if ((me.data as any)?.user?.role !== 'admin') {
+  if (me.data?.user?.role !== 'admin') {
     return (
       <StickerCard title="Создать турнир">
         <div className="text-sm text-red-700 font-bold">Forbidden</div>
@@ -218,11 +228,22 @@ export function AdminNewTournamentScreen() {
           </label>
 
           <label className="block">
+            <div className="text-xs font-black">Количество столов в заведении</div>
+            <input
+              type="number"
+              min={1}
+              className="mt-1 w-full rounded-xl border-4 border-black px-3 py-2 text-sm"
+              value={tablesCount}
+              onChange={(e) => setTablesCount(e.target.value === '' ? '' : Number(e.target.value))}
+            />
+          </label>
+
+          <label className="block">
             <div className="text-xs font-black">Статус</div>
             <select
               className="mt-1 w-full rounded-xl border-4 border-black px-3 py-2 text-sm font-bold"
               value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
+              onChange={(e) => setStatus(e.target.value as TournamentStatus)}
             >
               <option value="draft">Черновик</option>
               <option value="registration_open">Регистрация открыта</option>
@@ -239,4 +260,3 @@ export function AdminNewTournamentScreen() {
     </div>
   )
 }
-

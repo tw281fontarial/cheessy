@@ -4,8 +4,11 @@ import { verifyUserJwt } from './jwt'
 
 export type AuthedRequest = Request & { auth?: { userId: string; role: 'user' | 'admin' } }
 
-export function authMiddleware(env: Env) {
-  return (req: AuthedRequest, _res: Response, next: NextFunction) => {
+export function authMiddleware(
+  env: Env,
+  resolveRole?: (userId: string) => Promise<'user' | 'admin' | null>,
+) {
+  return async (req: AuthedRequest, _res: Response, next: NextFunction) => {
     const bearer = req.headers.authorization?.startsWith('Bearer ')
       ? req.headers.authorization.slice('Bearer '.length)
       : undefined
@@ -14,8 +17,14 @@ export function authMiddleware(env: Env) {
 
     const payload = verifyUserJwt(env, token)
     if (!payload) return next()
-    req.auth = { userId: payload.sub, role: payload.role }
-    next()
+    try {
+      const role = resolveRole ? await resolveRole(payload.sub) : payload.role
+      if (!role) return next()
+      req.auth = { userId: payload.sub, role }
+      next()
+    } catch (e) {
+      next(e)
+    }
   }
 }
 
@@ -35,4 +44,3 @@ export function requireAdmin(req: AuthedRequest, res: Response): boolean {
   }
   return true
 }
-

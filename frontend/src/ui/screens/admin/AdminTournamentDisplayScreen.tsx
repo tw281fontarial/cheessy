@@ -6,30 +6,61 @@ import { statusLabel } from '../../../lib/display'
 import { StickerCard } from '../../components/StickerCard'
 import { BackButton } from '../../components/BackButton'
 
+type DisplayTournamentResponse = {
+  tournament: {
+    title: string
+    status: string
+  }
+}
+
+type DisplayGame = {
+  id: string
+  roundNumber: number
+  table_number: number
+  assigned_table_number: number | null
+  status: 'waiting' | 'playing' | 'completed'
+  result: string | null
+  white: { username: string | null } | null
+  black: { username: string | null } | null
+}
+
+type DisplayGamesResponse = {
+  games: DisplayGame[]
+}
+
+type DisplayStandingsResponse = {
+  standings: Array<{
+    place: number
+    playerName: string
+    points: number
+    symbols: string
+  }>
+}
+
 export function AdminTournamentDisplayScreen() {
   const { id } = useParams()
   const tournamentId = useMemo(() => id ?? '', [id])
   const tournament = useQuery({
     queryKey: ['admin', 'display', 'tournament', tournamentId],
     enabled: Boolean(tournamentId),
-    queryFn: () => api<any>(`/api/admin/tournaments/${tournamentId}`),
+    queryFn: () => api<DisplayTournamentResponse>(`/api/admin/tournaments/${tournamentId}`),
   })
   const games = useQuery({
     queryKey: ['admin', 'display', 'games', tournamentId],
     enabled: Boolean(tournamentId),
-    queryFn: () => api<any>(`/api/admin/tournaments/${tournamentId}/games`),
+    queryFn: () => api<DisplayGamesResponse>(`/api/admin/tournaments/${tournamentId}/games`),
     refetchInterval: 10000,
   })
   const standings = useQuery({
     queryKey: ['admin', 'display', 'standings', tournamentId],
     enabled: Boolean(tournamentId),
-    queryFn: () => api<any>(`/api/tournaments/${tournamentId}/standings`),
+    queryFn: () => api<DisplayStandingsResponse>(`/api/tournaments/${tournamentId}/standings`),
     refetchInterval: 10000,
   })
 
   const currentRound = useMemo(() => {
     const rows = games.data?.games ?? []
-    return rows.length ? Math.max(...rows.map((g: any) => g.roundNumber || 0)) : 0
+    return rows.length ? Math.max(...rows.map((g) => g.roundNumber || 0)) : 0
   }, [games.data])
 
   return (
@@ -44,17 +75,18 @@ export function AdminTournamentDisplayScreen() {
       <StickerCard title="Пары текущего тура">
         <div className="space-y-2">
           {(games.data?.games ?? [])
-            .filter((g: any) => g.roundNumber === currentRound)
-            .map((g: any) => (
+            .filter((g) => g.roundNumber === currentRound)
+            .map((g) => (
               <div key={g.id} className="rounded-xl border border-white/15 px-3 py-2 text-sm">
-                Стол {g.table_number}: {g.white?.username || 'Игрок'} vs {g.black?.username || (g.result === 'bye' ? 'BYE' : 'Игрок')} · {g.result ?? 'ожидается'}
+                {g.status === 'waiting' ? `Очередь ${g.table_number}` : `Стол ${g.assigned_table_number ?? g.table_number}`}:{' '}
+                {g.white?.username || 'Игрок'} vs {g.black?.username || (g.result === 'bye' ? 'BYE' : 'Игрок')} · {g.result ?? (g.status === 'waiting' ? 'ждёт стол' : 'ожидается')}
               </div>
             ))}
         </div>
       </StickerCard>
       <StickerCard title="Таблица турнира">
         <div className="space-y-2">
-          {(standings.data?.standings ?? []).map((s: any) => (
+          {(standings.data?.standings ?? []).map((s) => (
             <div key={`${s.place}-${s.playerName}`} className="flex items-center justify-between rounded-xl border border-white/15 px-3 py-2 text-sm">
               <div>{s.place}. {s.playerName}</div>
               <div className="font-bold">{s.points} · {s.symbols}</div>
@@ -65,4 +97,3 @@ export function AdminTournamentDisplayScreen() {
     </div>
   )
 }
-

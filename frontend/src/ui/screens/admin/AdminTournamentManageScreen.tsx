@@ -16,8 +16,15 @@ type Tournament = {
   startsAt: string
   status: string
   maxPlayers: number | null
+  tablesCount: number | null
   organizerContact?: string | null
   posterUrl?: string | null
+}
+
+type MeResponse = {
+  user: {
+    role: 'user' | 'admin'
+  }
 }
 
 type RegistrationRow = {
@@ -42,6 +49,9 @@ type GameRow = {
   roundNumber: number
   round_id: string
   table_number: number
+  assigned_table_number: number | null
+  queue_order: number | null
+  status: 'waiting' | 'playing' | 'completed'
   white_user_id: string | null
   black_user_id: string | null
   result: string | null
@@ -52,35 +62,35 @@ type GameRow = {
 export function AdminTournamentManageScreen() {
   const { id } = useParams()
   const tournamentId = useMemo(() => id ?? '', [id])
-  const me = useQuery({ queryKey: ['me'], queryFn: () => api<any>('/api/me'), retry: false })
+  const me = useQuery({ queryKey: ['me'], queryFn: () => api<MeResponse>('/api/me'), retry: false })
 
   const t = useQuery({
     queryKey: ['admin', 'tournament', tournamentId],
-    enabled: Boolean(tournamentId) && (me.data as any)?.user?.role === 'admin',
+    enabled: Boolean(tournamentId) && me.data?.user?.role === 'admin',
     queryFn: () => api<{ tournament: Tournament }>(`/api/admin/tournaments/${tournamentId}`),
   })
 
   const regs = useQuery({
     queryKey: ['admin', 'registrations', tournamentId],
-    enabled: Boolean(tournamentId) && (me.data as any)?.user?.role === 'admin',
+    enabled: Boolean(tournamentId) && me.data?.user?.role === 'admin',
     queryFn: () => api<{ registrations: RegistrationRow[] }>(`/api/admin/tournaments/${tournamentId}/registrations`),
   })
 
   const rounds = useQuery({
     queryKey: ['admin', 'rounds', tournamentId],
-    enabled: Boolean(tournamentId) && (me.data as any)?.user?.role === 'admin',
+    enabled: Boolean(tournamentId) && me.data?.user?.role === 'admin',
     queryFn: () => api<{ rounds: Array<{ id: string; roundNumber: number; status: string }> }>(`/api/admin/tournaments/${tournamentId}/rounds`),
   })
 
   const games = useQuery({
     queryKey: ['admin', 'games', tournamentId],
-    enabled: Boolean(tournamentId) && (me.data as any)?.user?.role === 'admin',
+    enabled: Boolean(tournamentId) && me.data?.user?.role === 'admin',
     queryFn: () => api<{ games: GameRow[] }>(`/api/admin/tournaments/${tournamentId}/games`),
   })
 
   const standings = useQuery({
     queryKey: ['admin', 'standings', tournamentId],
-    enabled: Boolean(tournamentId) && (me.data as any)?.user?.role === 'admin',
+    enabled: Boolean(tournamentId) && me.data?.user?.role === 'admin',
     queryFn: () => api<{ standings: Array<{ place: number; userId: string; name: string; points: number }> }>(`/api/admin/tournaments/${tournamentId}/standings`),
   })
 
@@ -121,7 +131,7 @@ export function AdminTournamentManageScreen() {
   })
   const startPreview = useQuery({
     queryKey: ['admin', 'start-preview', tournamentId],
-    enabled: Boolean(tournamentId) && (me.data as any)?.user?.role === 'admin',
+    enabled: Boolean(tournamentId) && me.data?.user?.role === 'admin',
     queryFn: () => api<{ registered: number; checkedIn: number; late: number; notCheckedIn: number }>(`/api/admin/tournaments/${tournamentId}/start-preview`),
   })
 
@@ -208,11 +218,11 @@ export function AdminTournamentManageScreen() {
 
   const totalRegs = regs.data?.registrations.length ?? 0
   const checkedInCount = regs.data?.registrations.filter((r) => r.checkedIn && r.status === 'registered').length ?? 0
-  const tournamentStatus = (t.data as any)?.tournament?.status as string | undefined
+  const tournamentStatus = t.data?.tournament?.status
 
   if (me.isLoading) return <div className="text-sm">Загружаю…</div>
   if (me.isError) return <div className="text-sm text-red-700">Ошибка: {(me.error as Error).message}</div>
-  if ((me.data as any)?.user?.role !== 'admin') {
+  if (me.data?.user?.role !== 'admin') {
     return (
       <StickerCard title="Управление турниром">
         <div className="text-sm text-red-700 font-bold">Forbidden</div>
@@ -252,7 +262,7 @@ export function AdminTournamentManageScreen() {
               {statusLabel(t.data.tournament.status)}
             </div>
             <div className="text-xs font-bold opacity-80">
-              Количество регистраций: {totalRegs} · Пришли: {checkedInCount}
+              Количество регистраций: {totalRegs} · Пришли: {checkedInCount} · Столов: {t.data.tournament.tablesCount ?? 'без ограничения'}
             </div>
             <div className="pt-2">
               <Link to={`/admin/tournaments/${tournamentId}/display`} className="inline-block rounded-xl border border-white/20 bg-[#0f172a] px-3 py-2 text-xs font-bold">
@@ -325,7 +335,7 @@ export function AdminTournamentManageScreen() {
                 onClick={() => {
                   const p = startPreview.data
                   const msg = p
-                    ? `В турнир попадут:\n- ${p.checkedIn} участников\n- ${p.late} опаздывают\n- ${p.notCheckedIn} не отмечены как пришедшие\n\nНачать турнир?`
+                    ? `В турнир попадут:\n- ${p.checkedIn} участников\n- ${p.late} опаздывают\n- ${p.notCheckedIn} не отмечены как пришедшие\n- столов в заведении: ${t.data?.tournament.tablesCount ?? 'без ограничения'}\n\nНачать турнир?`
                     : 'Начать турнир? Регистрация будет закрыта.'
                   if (!confirm(msg)) return
                   startTournament.mutate()
@@ -365,15 +375,18 @@ export function AdminTournamentManageScreen() {
             const currentRoundNumber = currentRound?.roundNumber ?? 0
             const currentGames = games.data.games.filter((g) => g.roundNumber === currentRoundNumber).sort((a, b) => a.table_number - b.table_number)
             const allDone = currentGames.every((g) => g.result !== null)
-            const running = (t.data as any)?.tournament?.status === 'running'
+            const waitingCount = currentGames.filter((g) => g.status === 'waiting').length
+            const running = t.data?.tournament?.status === 'running'
 
             return (
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-black">Тур №{currentRoundNumber || '—'}</div>
-                  {running && currentRoundNumber ? (
-                    <div className="text-xs font-bold opacity-80">{allDone ? 'все результаты введены' : 'ожидаем результаты'}</div>
-                  ) : null}
+	                  {running && currentRoundNumber ? (
+	                    <div className="text-xs font-bold opacity-80">
+	                      {waitingCount > 0 ? `очередь: ${waitingCount}` : allDone ? 'все результаты введены' : 'ожидаем результаты'}
+	                    </div>
+	                  ) : null}
                 </div>
 
                 {currentRoundNumber === 0 ? (
@@ -384,7 +397,9 @@ export function AdminTournamentManageScreen() {
                       <div key={g.id} className="rounded-2xl border border-white/20 p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-xs font-black uppercase">стол #{g.table_number}</div>
+	                            <div className="text-xs font-black uppercase">
+	                              {g.status === 'waiting' ? `очередь #${g.table_number}` : `стол #${g.assigned_table_number ?? g.table_number}`}
+	                            </div>
                             {g.result === 'bye' || g.black_user_id === null ? (
                               <>
                                 <div className="text-sm font-black">
@@ -427,11 +442,13 @@ export function AdminTournamentManageScreen() {
                                 </span>
                               </div>
                             )}
-                            <div className="mt-1 text-xs font-bold opacity-80">Результат: {g.result ?? 'ожидается'}</div>
-                          </div>
-                        </div>
+	                            <div className="mt-1 text-xs font-bold opacity-80">
+	                              Результат: {g.result ?? (g.status === 'waiting' ? 'ждёт свободный стол' : 'ожидается')}
+	                            </div>
+	                          </div>
+	                        </div>
 
-                        {g.result === 'bye' || g.black_user_id === null || tournamentStatus === 'finished' ? null : (
+	                        {g.result === 'bye' || g.black_user_id === null || tournamentStatus === 'finished' || g.status === 'waiting' ? null : (
                           <div className="mt-3 grid grid-cols-3 gap-2">
                             <button
                               className="relative z-10 rounded-xl border-4 border-black bg-[#ffe600] px-2 py-2 text-xs font-black"
@@ -523,7 +540,7 @@ export function AdminTournamentManageScreen() {
             if (!confirm('Завершить турнир? После этого турнир станет завершённым.')) return
             finishTournament.mutate()
           }}
-          disabled={finishTournament.isPending || (t.data as any)?.tournament?.status !== 'running' || (t.data as any)?.tournament?.status === 'finished'}
+          disabled={finishTournament.isPending || t.data?.tournament?.status !== 'running'}
         >
           {finishTournament.isPending ? 'Завершаю…' : 'Завершить турнир'}
         </Button>
@@ -639,4 +656,3 @@ export function AdminTournamentManageScreen() {
     </div>
   )
 }
-

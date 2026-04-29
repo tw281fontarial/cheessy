@@ -1,14 +1,12 @@
 import { getSupabaseClient } from './supabase'
+import { api } from './api'
 
 export const TOURNAMENT_POSTERS_BUCKET = 'tournament-posters'
 
-function safeFileName(name: string) {
-  const lower = (name || 'poster').toLowerCase()
-  const noSpaces = lower.replace(/\s+/g, '-')
-  const cleaned = noSpaces.replace(/[^a-z0-9._-]/g, '')
-  const collapsed = cleaned.replace(/-+/g, '-').replace(/_+/g, '_')
-  const trimmed = collapsed.replace(/^[-_.]+|[-_.]+$/g, '')
-  return trimmed || 'poster'
+type SignedPosterUpload = {
+  objectPath: string
+  token: string
+  publicUrl: string
 }
 
 export async function uploadTournamentPoster(file: File, tournamentId?: string | null) {
@@ -18,23 +16,23 @@ export async function uploadTournamentPoster(file: File, tournamentId?: string |
   const MAX = 5 * 1024 * 1024
   if (file.size > MAX) throw new Error('Файл слишком большой (макс 5 MB)')
 
-  const supabase = getSupabaseClient()
-  const ts = Date.now()
-  const base = safeFileName(file.name)
-  const pathBase = tournamentId ? `tournaments/${tournamentId}` : 'tournaments/new'
-  const objectPath = `${pathBase}/${ts}-${base}`
+  const signed = await api<SignedPosterUpload>('/api/admin/storage/tournament-posters/signed-upload', {
+    method: 'POST',
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: file.type,
+      fileSize: file.size,
+      tournamentId: tournamentId ?? null,
+    }),
+  })
 
-  const { error: uploadError } = await supabase.storage.from(TOURNAMENT_POSTERS_BUCKET).upload(objectPath, file, {
-    cacheControl: '3600',
-    upsert: false,
+  const supabase = getSupabaseClient()
+  const { error: uploadError } = await supabase.storage.from(TOURNAMENT_POSTERS_BUCKET).uploadToSignedUrl(signed.objectPath, signed.token, file, {
     contentType: file.type,
   })
   if (uploadError) throw new Error(uploadError.message)
 
-  const { data } = supabase.storage.from(TOURNAMENT_POSTERS_BUCKET).getPublicUrl(objectPath)
-  const publicUrl = data?.publicUrl
-  if (!publicUrl) throw new Error('Не удалось получить public URL')
+  if (!signed.publicUrl) throw new Error('Не удалось получить public URL')
 
-  return { publicUrl, objectPath }
+  return { publicUrl: signed.publicUrl, objectPath: signed.objectPath }
 }
-

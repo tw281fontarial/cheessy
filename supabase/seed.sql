@@ -25,7 +25,7 @@ admin_user as (
 ),
 -- 2) Tournaments (one open, one draft)
 open_tournament as (
-  insert into public.tournaments (title, description, location_text, starts_at, status, max_players, created_by)
+  insert into public.tournaments (title, description, location_text, starts_at, status, max_players, tables_count, created_by)
   select
     'CHEESSY TEST OPEN — SPB',
     'Тестовый турнир для разработки (регистрация открыта).',
@@ -33,12 +33,13 @@ open_tournament as (
     now() + interval '3 days',
     'registration_open',
     32,
+    6,
     (select id from admin_user)
   where not exists (select 1 from public.tournaments where title = 'CHEESSY TEST OPEN — SPB')
   returning id
 ),
 draft_tournament as (
-  insert into public.tournaments (title, description, location_text, starts_at, status, max_players, created_by)
+  insert into public.tournaments (title, description, location_text, starts_at, status, max_players, tables_count, created_by)
   select
     'CHEESSY TEST DRAFT — SPB',
     'Тестовый турнир (draft).',
@@ -46,6 +47,7 @@ draft_tournament as (
     now() + interval '10 days',
     'draft',
     24,
+    4,
     (select id from admin_user)
   where not exists (select 1 from public.tournaments where title = 'CHEESSY TEST DRAFT — SPB')
   returning id
@@ -75,4 +77,3 @@ on conflict (tournament_id, user_id) do update set
   checked_in = excluded.checked_in,
   source = excluded.source,
   updated_at = now();
-

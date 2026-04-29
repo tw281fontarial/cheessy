@@ -7,11 +7,17 @@ export function parseInitData(initData: string): Record<string, string> {
   return out
 }
 
-export function verifyTelegramInitData(initData: string, botToken: string): boolean {
+export function verifyTelegramInitData(initData: string, botToken: string, maxAgeSeconds: number): boolean {
   const data = parseInitData(initData)
   const receivedHash = data.hash
   if (!receivedHash) return false
   delete data.hash
+
+  const authDate = Number(data.auth_date)
+  if (!Number.isFinite(authDate)) return false
+  const nowSeconds = Math.floor(Date.now() / 1000)
+  if (authDate > nowSeconds + 60) return false
+  if (nowSeconds - authDate > maxAgeSeconds) return false
 
   const checkString = Object.keys(data)
     .sort()
@@ -22,7 +28,10 @@ export function verifyTelegramInitData(initData: string, botToken: string): bool
   // secret_key = HMAC_SHA256("WebAppData", bot_token)
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest()
   const calculatedHash = crypto.createHmac('sha256', secretKey).update(checkString).digest('hex')
-  return calculatedHash === receivedHash
+  const calculated = Buffer.from(calculatedHash, 'hex')
+  const received = Buffer.from(receivedHash, 'hex')
+  if (calculated.length !== received.length) return false
+  return crypto.timingSafeEqual(calculated, received)
 }
 
 export function getTelegramUserFromInitData(initData: string):
@@ -42,4 +51,3 @@ export function getTelegramUserFromInitData(initData: string):
     return null
   }
 }
-

@@ -3,8 +3,8 @@
 -- NOTE: This project does NOT use Supabase Auth. Therefore, "authenticated" policies won't work.
 -- This migration provides a simple STARTER setup:
 -- - public read
--- - anon upload (TEMPORARY) so the Mini App can upload directly from frontend anon key
--- For production, prefer a backend upload endpoint + signed URLs and disable anon upload.
+-- - anon upload (TEMPORARY legacy setup)
+-- A later migration drops this policy after backend signed uploads are enabled.
 
 -- 1) Create public bucket (idempotent)
 insert into storage.buckets (id, name, public)
@@ -33,4 +33,3 @@ begin
       with check (bucket_id = 'tournament-posters');
   end if;
 end $$;
-
